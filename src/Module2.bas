@@ -20,7 +20,7 @@ Sub PW_diagnostyka()
     ' 2. Sprawdzenie obecności kluczowych arkuszy
     Dim ws As Worksheet
     Dim sheetNames As Variant
-    sheetNames = Array("Sheet_1", "Sheet_2", "Sheet_3")
+    sheetNames = Array(SH_DATA, SH_FOLDERS, SH_ATTRS)
     Dim i As Integer
     
     For i = LBound(sheetNames) To UBound(sheetNames)

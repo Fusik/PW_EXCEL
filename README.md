@@ -3,21 +3,43 @@
 `PW_integrationg.xlsm` pobiera listę plików (z atrybutami) z folderów ProjectWise przez moduł PowerShell `PWPS_DAB`
 i utrzymuje ją w `Sheet_1` jako **deltę** (nowe / zmienione / usunięte pliki).
 
+## Arkusze
+| Arkusz | Rola |
+|---|---|
+| `Instrukcja` | Opis obsługi, przykłady linków do folderów PW, opis kolumn i kolorów, rozwiązywanie problemów |
+| `Foldery` | Linki `pw:\\…` do skanowanych folderów (A: TAK/NIE, B: link, C: opis; dane od wiersza 6) |
+| `Atrybuty` | Nazwy atrybutów PW do pobrania (kolumna A od wiersza 6) + folder próbny (B3) i przycisk „Zbadaj atrybuty” |
+| `Baza_PW` | Wynik: pliki z atrybutami (nagłówki w wierszu 11, dane od 12), przyciski, legenda, wyszukiwarka |
+| `Diagnostyka` | Atrybuty jednego pliku – ściąga nazw do arkusza `Atrybuty` |
+| `Log` | Historia zmian (ADDED / CHANGED / DELETED / WARNING) |
+
+Dawne nazwy: `Sheet_1`→`Baza_PW`, `Sheet_2`→`Foldery`, `Sheet_3`→`Atrybuty`, `PW_Diagnostyka`→`Diagnostyka`.
+Nazwy arkuszy, układ i kolory są w jednym miejscu: `src/modConfig.bas`.
+
 ## Jak to działa
-1. `Sheet_2` kol. B – linki `pw:\\...` do skanowanych folderów.
-2. `Sheet_3` kol. A – nazwy atrybutów PW do pobrania (wiersz 1 = nagłówek).
-3. Makro `DownloadFromProjectWise_PWPS` (Module1) generuje `PW_GetFiles.ps1`, uruchamia je, wczytuje CSV i porównuje z `Sheet_1`
-   (od wiersza 12; nagłówki w wierszu 11; zielone wiersze = foldery).
-   - nowy plik → dodany + wpis `ADDED` w `Log`
-   - zmiana atrybutu → żółta komórka, komentarz ze starą wartością, wpis `CHANGED`
-   - plik zniknął z PW → czerwony wiersz + przekreślenie, wpis `DELETED`
-4. `PW_Diagnostyka` / `PW_diagnostyka` – sprawdzenie środowiska, `ZbadajAtrybutyPW` – podgląd dostępnych atrybutów.
+1. `Foldery` → linki, `Atrybuty` → atrybuty.
+2. `AKTUALIZUJ DANE` (`DownloadFromProjectWise_PWPS`, Module1) generuje `PW_GetFiles.ps1`, uruchamia go, wczytuje CSV i porównuje z `Baza_PW`:
+   - nowy plik → dodany + `ADDED` w `Log`
+   - zmiana atrybutu → żółta komórka, komentarz ze starą wartością, `CHANGED`
+   - plik zniknął z PW → czerwony przekreślony wiersz, `DELETED`
 
-## Kod źródłowy (`src/`)
-Kod VBA wyciągnięty z xlsm, żeby dało się go przeglądać w diffach. Moduły standardowe (`Module1-3`) wgrywa do skoroszytu
-`Import-VBA.ps1` (Windows + Excel, włączony dostęp do modelu VBA). Formularze i kod arkuszy (`*.frm`, `*.cls`) są tylko do podglądu.
+## Wdrożenie (WAŻNE)
+Plik `PW_integrationg.xlsm` ma przebudowany wygląd arkuszy, ale **kod VBA w środku jest jeszcze stary** (odwołuje się do `Sheet_1…`).
+Przed użyciem uruchom na kopii pliku `Import-VBA.ps1` (Windows + Excel, włączony dostęp do modelu VBA) – podmienia moduły,
+kod arkuszy i formularzy na wersję z `src/`. Bez tego makra zgłoszą brak arkusza `Sheet_1`.
 
-## Zmiany w tej wersji (V1.3)
+## Pliki w repo
+- `src/` – kod VBA wyciągnięty ze skoroszytu (podgląd/diffy; formularze bez układu graficznego).
+- `tools/build_workbook.py` – skrypt, który z oryginału (`tools/original/`) buduje nowy układ arkuszy na poziomie XML
+  (`python3 tools/build_workbook.py tools/original/PW_integrationg_original.xlsm PW_integrationg.xlsm`).
+- `Import-VBA.ps1` – wgrywa `src/` do skoroszytu.
+
+## Zmiany w V1.4 (UI)
+- Czytelne nazwy arkuszy, arkusz `Instrukcja`, nowy wygląd (nagłówki, kolory, listy TAK/NIE, walidacja linków, legenda).
+- Kolumna „Aktywny” w `Foldery`; działająca wyszukiwarka w `Baza_PW`; nagłówki w `Log`.
+- Kolory zmian/usunięć stonowane (stałe w `modConfig`).
+
+## Zmiany w V1.3
 - **Bezpieczne usuwanie**: PowerShell zapisuje `[SCOPE_OK]` dla folderów faktycznie przeskanowanych. Wcześniej błąd logowania/nieznaleziony
   folder powodował oznaczenie WSZYSTKICH jego plików jako usunięte. Teraz takie foldery są pomijane i logowane jako `WARNING`.
 - **Brak starych danych**: przed uruchomieniem PS kasowane są stare `PW_Output.csv` i log struktury (przy awarii PS delta nie liczy się już na starych plikach).

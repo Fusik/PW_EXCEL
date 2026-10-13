@@ -67,7 +67,7 @@ End Sub
 ' =====================================================================
 Private Sub UserForm_Initialize()
     Dim ws As Worksheet
-    Set ws = ThisWorkbook.Sheets("Sheet_1")
+    Set ws = ThisWorkbook.Sheets(SH_DATA)
     
     Dim maxR As Long, r As Long
     Dim pathCol As Long, nameCol As Long
@@ -127,7 +127,7 @@ Private Sub UserForm_Initialize()
                 
                 If Not newNode Is Nothing Then
                     newNode.Tag = r
-                    If ws.Cells(r, 1).Interior.Color = RGB(255, 100, 100) Then
+                    If ws.Cells(r, 1).Interior.Color = CLR_DELETED Then
                         newNode.ForeColor = vbRed
                     Else
                         newNode.ForeColor = RGB(0, 102, 204)
@@ -210,7 +210,7 @@ End Sub
 Private Sub TreeView1_NodeClick(ByVal Node As MSComctlLib.Node)
     Dim targetRow As Long
     Dim ws As Worksheet
-    Set ws = ThisWorkbook.Sheets("Sheet_1")
+    Set ws = ThisWorkbook.Sheets(SH_DATA)
     
     ' Skok do wybranego wiersza
     If Node.Tag <> "" And IsNumeric(Node.Tag) Then

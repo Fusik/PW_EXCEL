@@ -24,17 +24,17 @@ Private Sub UserForm_Initialize()
     Dim attrName As String
     
     On Error Resume Next
-    Set ws3 = ThisWorkbook.Sheets("Sheet_3")
+    Set ws3 = ThisWorkbook.Sheets(SH_ATTRS)
     On Error GoTo 0
     
     If ws3 Is Nothing Then
-        MsgBox "Sheet 'Sheet_3' not found.", vbCritical
+        MsgBox "Sheet '" & SH_ATTRS & "' not found.", vbCritical
         Exit Sub
     End If
     
     lastRow = ws3.Cells(ws3.rows.count, "A").End(xlUp).Row
     
-    For i = 2 To lastRow
+    For i = ATTRS_FIRST_ROW To lastRow
         attrName = Trim(ws3.Cells(i, 1).Value)
         If attrName <> "" Then
             ListBox1.AddItem attrName
@@ -42,7 +42,7 @@ Private Sub UserForm_Initialize()
     Next i
     
     If ListBox1.ListCount = 0 Then
-        MsgBox "Column A in Sheet_3 is empty. Add attribute names there!", vbExclamation
+        MsgBox "Column A in sheet '" & SH_ATTRS & "' is empty. Add attribute names there!", vbExclamation
     End If
 End Sub
 

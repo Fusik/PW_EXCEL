@@ -19,17 +19,17 @@ Sub ZbadajAtrybutyPW()
     
     ' Odczytanie testowej ścieżki wpisanej w Sheet_3 (Komórka B2)
     On Error Resume Next
-    Set ws2 = ThisWorkbook.Sheets("Sheet_3")
+    Set ws2 = ThisWorkbook.Sheets(SH_ATTRS)
     On Error GoTo 0
     
     If ws2 Is Nothing Then
-        MsgBox "Brak arkusza 'Sheet_3'.", vbExclamation
+        MsgBox "Brak arkusza '" & SH_ATTRS & "'.", vbExclamation
         Exit Sub
     End If
     
-    folderPath = ws2.Cells(2, 2).Value
+    folderPath = ws2.Range(ATTRS_SAMPLE_FOLDER).Value
     If Trim(folderPath) = "" Then
-        MsgBox "Brak folderu w Sheet_3 (komórka B2). Wpisz tam ścieżkę do folderu PW, aby pobrać jego atrybuty.", vbExclamation
+        MsgBox "Brak folderu w arkuszu " & SH_ATTRS & " (komórka " & ATTRS_SAMPLE_FOLDER & "). Wpisz tam ścieżkę do folderu PW, aby pobrać jego atrybuty.", vbExclamation
         Exit Sub
     End If
     
@@ -100,18 +100,17 @@ Sub ZbadajAtrybutyPW()
     ' Zrzut pliku wynikowego CSV do nowego arkusza Excel
     If fso.FileExists(csvOutputPath) Then
         On Error Resume Next
-        Set wsDiag = ThisWorkbook.Sheets("PW_Diagnostyka")
+        Set wsDiag = ThisWorkbook.Sheets(SH_DIAG)
         If wsDiag Is Nothing Then
             Set wsDiag = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.count))
-            wsDiag.Name = "PW_Diagnostyka"
+            wsDiag.Name = SH_DIAG
         End If
         On Error GoTo 0
         
         wsDiag.Cells.Clear
-        wsDiag.Cells(1, 1).Value = "Wewnętrzna nazwa PowerShell (Kopiuj do A w Sheet_3)"
+        wsDiag.Cells(1, 1).Value = "Nazwa atrybutu (skopiuj do kolumny A w arkuszu " & SH_ATTRS & ")"
         wsDiag.Cells(1, 2).Value = "Przykładowa wartość (z 1 pliku)"
-        wsDiag.Range("A1:B1").Font.Bold = True
-        wsDiag.Range("A1:B1").Interior.Color = RGB(220, 230, 241)
+        StyleHeader wsDiag.Range("A1:B1")
         
         Dim stream As Object, csvData As String, rowsArr() As String
         Set stream = CreateObject("ADODB.Stream")
@@ -136,7 +135,7 @@ Sub ZbadajAtrybutyPW()
                         
                         ' Wyróżnienie naszych sztucznych atrybutów
                         If Trim(cols(0)) = "Updater" Or Trim(cols(0)) = "Updated" Then
-                            wsDiag.Range(wsDiag.Cells(outR, 1), wsDiag.Cells(outR, 2)).Interior.Color = RGB(255, 242, 204)
+                            wsDiag.Range(wsDiag.Cells(outR, 1), wsDiag.Cells(outR, 2)).Interior.Color = CLR_CHANGED
                             wsDiag.Range(wsDiag.Cells(outR, 1), wsDiag.Cells(outR, 2)).Font.Bold = True
                         End If
                         
@@ -149,7 +148,7 @@ Sub ZbadajAtrybutyPW()
         
         wsDiag.Columns("A:B").AutoFit
         wsDiag.Activate
-        MsgBox "Diagnostyka zakończona! Sprawdź arkusz 'PW_Diagnostyka'.", vbInformation
+        MsgBox "Diagnostyka zakończona! Sprawdź arkusz '" & SH_DIAG & "'.", vbInformation
     Else
         MsgBox "Nie udało się wygenerować pliku CSV. Sprawdź okno PowerShell.", vbCritical
     End If
