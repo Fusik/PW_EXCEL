@@ -38,59 +38,63 @@ Sub ZbadajAtrybutyPW()
     csvOutputPath = basePath & "\PW_Diag.csv"
     Set fso = CreateObject("Scripting.FileSystemObject")
     
+    Dim dsName As String, fp As String
+    If Not ParseFolderLink(folderPath, dsName, fp) Then
+        MsgBox "Nie rozpoznano linku folderu próbnego. Oczekiwany format: pw:\\serwer:Datasource\Documents\Projekt\Folder\ (zobacz arkusz Instrukcja).", vbExclamation
+        Exit Sub
+    End If
+    On Error Resume Next
+    fso.DeleteFile csvOutputPath ' stary wynik nie moze udawac nowego
+    On Error GoTo 0
+    
     Dim psFile As Object
     Set psFile = fso.CreateTextFile(psScriptPath, True, True)
-    
-    ' Budowa skryptu diagnostycznego PowerShell
     psFile.WriteLine "$ErrorActionPreference = 'Stop'"
-    psFile.WriteLine "Import-Module PWPS_DAB -Force | Out-Null"
-    
-    ' --- ZMIANA 1: Dynamiczne wycięcie dsName ze ścieżki ---
-    psFile.WriteLine "$rawFolder = '" & folderPath & "'.Trim().Trim('\')"
-    psFile.WriteLine "$dsName = $rawFolder.Substring(0, $rawFolder.IndexOf('\'))"
-    psFile.WriteLine "$folderPath = $rawFolder.Substring($rawFolder.IndexOf('\') + 1)"
-    
-    psFile.WriteLine "Write-Host 'Logowanie do PW...' -ForegroundColor Cyan"
-    psFile.WriteLine "try { New-PWLogin -DatasourceName $dsName -BentleyIMS -NonAdminLogin | Out-Null } catch { exit 1 }"
-    
-    psFile.WriteLine "$idx = $folderPath.IndexOf('\Documents\', [System.StringComparison]::OrdinalIgnoreCase)"
-    psFile.WriteLine "if ($idx -ge 0) { $folderPath = $folderPath.Substring($idx + 11) } elseif ($folderPath.StartsWith('Documents\', [System.StringComparison]::OrdinalIgnoreCase)) { $folderPath = $folderPath.Substring(10) }"
-    psFile.WriteLine "$folderPath = $folderPath.Trim('\')"
-    
-    ' --- ZMIANA 2: Szukanie konkretnego pliku zamiast folderu ---
-    psFile.WriteLine "Write-Host ('Szukam pliku: ' + $folderPath) -ForegroundColor Yellow"
-    psFile.WriteLine "$doc = Get-PWDocumentsBySearch -FullPath $folderPath -GetAttributes -WarningAction SilentlyContinue"
-    
-    ' --- ZMIANA 3: Usunięcie sprawdzania folderu, sprawdzamy od razu plik ---
-    psFile.WriteLine "if ($doc) {"
-    psFile.WriteLine "    Write-Host 'Pobieranie 1 pliku do analizy atrybutów...' -ForegroundColor Green"
-    psFile.WriteLine "    if ($doc) {"
-    psFile.WriteLine "        $props = $doc.psobject.properties"
-    psFile.WriteLine "        $out = [System.Collections.Generic.List[psobject]]::new()"
-    
-    ' Pętla zrzucająca surowe właściwości systemowe z jednego pliku
-    psFile.WriteLine "        foreach ($p in $props) {"
-    psFile.WriteLine "            $val = $p.Value"
-    psFile.WriteLine "            if ($val -is [array]) { $val = ($val -join ', ') }"
-    psFile.WriteLine "            $out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = $p.Name; 'Wartosc' = $val })"
-    psFile.WriteLine "        }"
-    
-    ' Ręczne dodanie naszych sztucznych atrybutów Updater i Updated do diagnostyki
-    psFile.WriteLine "        $uName = @($doc.DocumentUpdaterName, $doc.FileUpdaterName, $doc.UpdaterName, $doc.Updater, $doc.CreatorName) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1"
-    psFile.WriteLine "        $out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = 'Updater'; 'Wartosc' = if($uName){$uName}else{'Unknown'} })"
-    psFile.WriteLine "        $uDate = @($doc.DocumentUpdateDate, $doc.FileUpdateDate, $doc.UpdateDate, $doc.Updated, $doc.CreateDate) | Where-Object { $_ } | Select-Object -First 1"
-    psFile.WriteLine "        $out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = 'Updated'; 'Wartosc' = if($uDate -is [DateTime]){$uDate.ToString('yyyy-MM-dd')}else{$uDate} })"
-    
-    psFile.WriteLine "        $out.ToArray() | Export-Csv -Path '" & csvOutputPath & "' -NoTypeInformation -Delimiter '|' -Encoding UTF8"
-    psFile.WriteLine "        Write-Host 'Zapisano plik diagnostyczny!' -ForegroundColor Green"
-    psFile.WriteLine "    } else {"
-    psFile.WriteLine "        Write-Host 'Wybrany folder jest pusty! (Brak plików do zbadania atrybutów)' -ForegroundColor Red"
+    psFile.WriteLine "$dsName = '" & Replace(dsName, "'", "''") & "'"
+    psFile.WriteLine "$folderPath = '" & Replace(fp, "'", "''") & "'"
+    psFile.WriteLine "$loggedIn = $false"
+    psFile.WriteLine "try {"
+    psFile.WriteLine "    Import-Module PWPS_DAB -Force | Out-Null"
+    psFile.WriteLine "    Write-Host ('Logowanie do PW (' + $dsName + ')...') -ForegroundColor Cyan"
+    psFile.WriteLine "    New-PWLogin -DatasourceName $dsName -BentleyIMS -NonAdminLogin | Out-Null"
+    psFile.WriteLine "    $loggedIn = $true"
+    psFile.WriteLine "    Write-Host ('Szukam folderu: ' + $folderPath) -ForegroundColor Yellow"
+    psFile.WriteLine "    $fl = @(Get-PWFolders -FolderPath $folderPath -ErrorAction SilentlyContinue)"
+    psFile.WriteLine "    if ($fl.Count -eq 0) { $fl = @(Get-PWFolders -FolderPath ('\' + $folderPath) -ErrorAction SilentlyContinue) }"
+    psFile.WriteLine "    if ($fl.Count -eq 0) { $fl = @(Get-PWFolders -FolderName $folderPath.Split('\')[-1] -ErrorAction SilentlyContinue) }"
+    psFile.WriteLine "    if ($fl.Count -eq 0) { throw 'Nie znaleziono folderu w ProjectWise. Sprawdz link folderu probnego w arkuszu Atrybuty.' }"
+    psFile.WriteLine "    Write-Host 'Pobieram dokumenty z atrybutami (moze chwile potrwac)...' -ForegroundColor Yellow"
+    psFile.WriteLine "    $doc = Get-PWDocumentsBySearch -FolderID $fl[0].ProjectID -GetAttributes -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Select-Object -First 1"
+    psFile.WriteLine "    if (-not $doc) { throw 'Folder nie zawiera dokumentow - wskaz folder z plikami.' }"
+    psFile.WriteLine "    $out = New-Object System.Collections.ArrayList"
+    psFile.WriteLine "    $seen = @{}"
+    psFile.WriteLine "    function Clean($v) { if ($v -is [array]) { $v = ($v -join ', ') }; if ($v -is [DateTime]) { $v = $v.ToString('yyyy-MM-dd') }; if ($v -is [string]) { $v = $v.Replace('|', '-').Replace([string][char]10, ' ').Replace([string][char]13, '') }; return $v }"
+    psFile.WriteLine "    foreach ($p in $doc.psobject.Properties) {"
+    psFile.WriteLine "        [void]$out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = $p.Name; 'Wartosc' = (Clean $p.Value) })"
+    psFile.WriteLine "        $seen[$p.Name] = $true"
     psFile.WriteLine "    }"
-    psFile.WriteLine "} else {"
-    psFile.WriteLine "    Write-Host 'Nie znaleziono folderu w ProjectWise!' -ForegroundColor Red"
+    psFile.WriteLine "    foreach ($p in $doc.psobject.Properties) {"
+    psFile.WriteLine "        $v = $p.Value"
+    psFile.WriteLine "        if ($null -eq $v -or $v -is [string] -or $v -is [ValueType] -or $v -is [array]) { continue }"
+    psFile.WriteLine "        if ($v -is [System.Collections.IDictionary]) { $pairs = @($v.Keys | Select-Object -First 200 | ForEach-Object { @{ N = [string]$_; V = $v[$_] } }) }"
+    psFile.WriteLine "        else { $pairs = @($v.psobject.Properties | Select-Object -First 200 | ForEach-Object { @{ N = $_.Name; V = $_.Value } }) }"
+    psFile.WriteLine "        foreach ($q in $pairs) {"
+    psFile.WriteLine "            if (-not $seen.ContainsKey($q.N)) { [void]$out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = $q.N; 'Wartosc' = (Clean $q.V) }); $seen[$q.N] = $true }"
+    psFile.WriteLine "        }"
+    psFile.WriteLine "    }"
+    psFile.WriteLine "    $uName = @($doc.DocumentUpdaterName, $doc.FileUpdaterName, $doc.UpdaterName, $doc.Updater, $doc.CreatorName) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1"
+    psFile.WriteLine "    [void]$out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = 'Updater'; 'Wartosc' = $(if ($uName) { $uName } else { 'Unknown' }) })"
+    psFile.WriteLine "    $uDate = @($doc.DocumentUpdateDate, $doc.FileUpdateDate, $doc.UpdateDate, $doc.Updated, $doc.CreateDate) | Where-Object { $_ } | Select-Object -First 1"
+    psFile.WriteLine "    [void]$out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = 'Updated'; 'Wartosc' = (Clean $uDate) })"
+    psFile.WriteLine "    $out | Export-Csv -Path '" & csvOutputPath & "' -NoTypeInformation -Delimiter '|' -Encoding UTF8"
+    psFile.WriteLine "    Write-Host ('Zapisano ' + $out.Count + ' atrybutow. Plik: ' + $doc.Name) -ForegroundColor Green"
+    psFile.WriteLine "} catch {"
+    psFile.WriteLine "    Write-Host ('BLAD: ' + $_.Exception.Message) -ForegroundColor Red"
+    psFile.WriteLine "    Read-Host 'Nacisnij Enter, aby zamknac okno'"
+    psFile.WriteLine "} finally {"
+    psFile.WriteLine "    if ($loggedIn) { try { Undo-PWLogin | Out-Null } catch {} }"
     psFile.WriteLine "}"
-    psFile.WriteLine "Undo-PWLogin | Out-Null"
-    psFile.WriteLine "Start-Sleep -Seconds 3"
+    psFile.WriteLine "Start-Sleep -Seconds 2"
     psFile.Close
     
     ' Wykonanie skryptu w tle
@@ -159,3 +163,30 @@ Sub ZbadajAtrybutyPW()
     fso.DeleteFile csvOutputPath
     On Error GoTo 0
 End Sub
+
+Private Function ParseFolderLink(ByVal link As String, ByRef ds As String, ByRef fp As String) As Boolean
+    Dim s As String, p As Long
+    s = Replace(Trim(link), "/", "\")
+    If UCase(Left(s, 3)) = "PW:" Then s = Mid(s, 4)
+    Do While Left(s, 1) = "\"
+        s = Mid(s, 2)
+    Loop
+    s = Replace(s, " (Working folder)", "", 1, -1, vbTextCompare)
+    p = InStr(1, s, "\Documents\", vbTextCompare)
+    If p > 0 Then
+        ds = Left(s, p - 1)
+        fp = Mid(s, p + 11)
+    Else
+        p = InStr(1, s, "\")
+        If p = 0 Then Exit Function
+        ds = Left(s, p - 1)
+        fp = Mid(s, p + 1)
+    End If
+    Do While Right(fp, 1) = "\"
+        fp = Left(fp, Len(fp) - 1)
+    Loop
+    Do While Left(fp, 1) = "\"
+        fp = Mid(fp, 2)
+    Loop
+    ParseFolderLink = (ds <> "" And fp <> "")
+End Function

@@ -359,6 +359,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     psFile.WriteLine "$folderIndex = 0"             ' Zapis kodu PS: Reset wskaźnika przetwarzanego folderu
     psFile.WriteLine "$okScopes = New-Object System.Collections.ArrayList" ' Lista folderów, które faktycznie udało się przeskanować (używana później do bezpiecznego oznaczania usunięć)
     psFile.WriteLine "$selectedAttrs = " & psArrayString ' Zapis kodu PS: Wstrzyknięcie z Excela tablicy z atrybutami (np. @('Attr1','Attr2'))
+    psFile.WriteLine "function Get-Attr($d, $n) { $p = $d.psobject.Properties[$n]; if ($p) { return $p.Value }; foreach ($q in $d.psobject.Properties) { $v = $q.Value; if ($null -eq $v -or $v -is [string] -or $v -is [ValueType] -or $v -is [array]) { continue }; if ($v -is [System.Collections.IDictionary]) { if ($v.Contains($n)) { return $v[$n] } } else { $pp = $v.psobject.Properties[$n]; if ($pp) { return $pp.Value } } }; return $null }" ' Pomocnik: atrybut moze byc wlasciwoscia dokumentu albo siedziec w zagniezdzonym obiekcie/slowniku
     psFile.WriteLine ""                             ' Zapis kodu PS: Pusty wiersz
     psFile.WriteLine "$results = @(foreach ($line in $inputData) {" ' Zapis kodu PS: Inicjalizacja tablicy na wyniki i początek pętli
     psFile.WriteLine " $parts = $line.Split('|')"   ' Zapis kodu PS: Rozbicie wiersza za pomocą separatora "|"
@@ -434,7 +435,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     
     psFile.WriteLine " foreach ($attr in $selectedAttrs) {" ' Zapis kodu PS: Przechodzenie przez każdą nazwę atrybutu wpisaną w Excelu
     psFile.WriteLine " if ($attr -match '^(Name|Description|FileName|Updater|Updated)$') { continue }" ' Zapis kodu PS: Zablokowanie nadpisywania stałych systemowych, jeśli ktoś wpisał bzdury
-    psFile.WriteLine " $val = $doc.$attr"           ' Zapis kodu PS: Odczytanie właściwości po jej dynamicznej nazwie
+    psFile.WriteLine " $val = Get-Attr $doc $attr"
     psFile.WriteLine " if ($val -is [DateTime]) { $val = $val.ToString('yyyy-MM-dd') }" ' Zapis kodu PS: Normalizacja, jeśli atrybut PW był typu Data
     psFile.WriteLine " elseif ($val -is [array]) { $val = ($val -join ', ') }" ' Zapis kodu PS: Złączenie atrybutów wielokrotnych (np. wiele tagów) przecinkami w jeden wiersz
     psFile.WriteLine " if ($val -is [string]) { $val = $val.Replace('|', '-').Replace(""`n"", ' ').Replace(""`r"", '').Trim() }" ' Zapis kodu PS: Zabezpieczenie CSV przed zepsuciem (znak potoku to separator, więc jest usuwany z tekstu użytkownika PW)
