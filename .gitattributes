@@ -1,0 +1,4 @@
+*.bas text eol=lf
+*.cls text eol=lf
+*.frm text eol=lf
+*.xlsm binary
