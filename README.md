@@ -24,7 +24,7 @@ Kod VBA wyciągnięty z xlsm, żeby dało się go przeglądać w diffach. Moduł
 - **Odporność makra**: obsługa błędów, wyłączenie `ScreenUpdating/EnableEvents/Calculation` na czas pracy (zawsze przywracane), błąd trafia do `Log`.
 - `CopyHeadersFromSheet3`: nie nadpisuje już nagłówków pustymi komórkami i kopiuje tylko faktyczne atrybuty (kolejność = CSV).
 - `RemoveEmptyRows`: pyta tylko, gdy są puste wiersze, i podaje ich liczbę.
-- Wykluczany użytkownik (`IGNORED_UPDATER`) wyniesiony do stałej na górze modułu.
+- Usunięto wykluczanie zmian użytkownika „Starszy Specjalista ds. kadr i płac, HR, Polska” – makro przetwarza teraz zmiany wszystkich osób.
 
 > Zmiany w VBA nie były uruchamiane w Excelu (środowisko bez Excela/ProjectWise) – przetestuj na kopii pliku.
 

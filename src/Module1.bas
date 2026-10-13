@@ -6,7 +6,6 @@ Option Explicit                                     ' Wymusza jawną deklarację
 ' GLOBALNE ZMIENNE DLA MODUŁU LOGOWANIA
 ' =======================================================================
 Private wsLog As Worksheet                          ' Zmienna przechowująca obiekt arkusza z logami
-Private Const IGNORED_UPDATER As String = "Starszy Specjalista ds. kadr i płac, HR, Polska" ' Zmiany tej osoby są pomijane przez makro (życzenie użytkownika z 2026-03-26)
 Private nextLogRow As Long                          ' Zmienna przechowująca numer kolejnego, pustego wiersza do zapisu w logach
 Private logStartRow As Long                         ' Zmienna przechowująca numer wiersza początkowego dla danej sesji uruchomienia
 
@@ -700,11 +699,6 @@ Private Sub ProcessSingleCSVRow(ws1 As Worksheet, rawRow As String, csvHeaders()
     Else                                            ' Jeśli kolumna UPDATER w pliku po prostu nie istniała dla tej bazy od strony ustawień PS (A zdarza się!)
         currentUpdater = "Unknown"                  ' Oznacz nieokreślonym flagiem bez wywoływania craszy z -1
     End If                                          ' Zamknięcie odgałęzień łapania winowajcy edycji pliku
-    
-    ' ZGODNIE Z KOREKTĄ UŻYTKOWNIKA [2026-03-26] - Wykluczenie osoby z działania bazy (Macro Ignore User Logic!)
-    If currentUpdater = IGNORED_UPDATER Then ' Odczyt osoby edytującej poddany zapytaniu z logiką twardą - Exclude Macro logic!
-        Exit Sub                                    ' Przerwanie operowania dla "tej" osoby dla jakichkolwiek poprawek z bazy (Ona jest ignorowana) - Cały blok zapisu Excel omija ją po chamsku w pętli nie zapisując modyfikacji pod log i zielone pola
-    End If                                          ' Zamknięcie logiki wykluczenia podanej na życzenie do systemu zachowania makra!
     
     If folderLinkIndex >= 0 And UBound(cols) >= folderLinkIndex Then ' Taki sam test logiczny -1 na upewnienie się co do istnienia ukrytego pola generowania URL w CSV
         folderUrn = Trim(cols(folderLinkIndex))     ' Zapisanie adresu generowania z pamięci komórki na zmienną
