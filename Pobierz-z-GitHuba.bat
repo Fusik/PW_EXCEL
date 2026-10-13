@@ -49,6 +49,6 @@ exit /b 0
 :fail
 echo.
 echo BLAD: nie udalo sie pobrac repozytorium. Jesli jest prywatne, zainstaluj Git
-echo i zaloguj sie do GitHuba (git ssam zapyta o dane logowania).
+echo i zaloguj sie do GitHuba (Git sam zapyta o dane logowania).
 pause
 exit /b 1
