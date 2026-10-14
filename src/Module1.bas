@@ -362,6 +362,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     psFile.WriteLine "$totalFolders = $inputData.Count" ' Zapis kodu PS: Obliczenie łącznej liczby zdefiniowanych folderów
     psFile.WriteLine "$folderIndex = 0"             ' Zapis kodu PS: Reset wskaźnika przetwarzanego folderu
     psFile.WriteLine "$allVersions = " & IIf(GET_ALL_VERSIONS, "$true", "$false") ' Czy pobierac wszystkie rewizje plikow (modConfig)
+    psFile.WriteLine "$loggedDs = $null"
     psFile.WriteLine "$okScopes = New-Object System.Collections.ArrayList" ' Lista folderów, które faktycznie udało się przeskanować (używana później do bezpiecznego oznaczania usunięć)
     psFile.WriteLine "$selectedAttrs = " & psArrayString ' Zapis kodu PS: Wstrzyknięcie z Excela tablicy z atrybutami (np. @('Attr1','Attr2'))
     psFile.WriteLine "function Get-Attr($d, $n) { $p = $d.psobject.Properties[$n]; if ($p) { return $p.Value }; foreach ($q in $d.psobject.Properties) { $v = $q.Value; if ($null -eq $v -or $v -is [string] -or $v -is [ValueType] -or $v -is [array]) { continue }; if ($v -is [System.Collections.IDictionary]) { if ($v.Contains($n)) { return $v[$n] } } else { $pp = $v.psobject.Properties[$n]; if ($pp) { return $pp.Value } } }; return $null }" ' Pomocnik: atrybut moze byc wlasciwoscia dokumentu albo siedziec w zagniezdzonym obiekcie/slowniku
@@ -377,7 +378,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     psFile.WriteLine " Write-Host ('Datasource: ' + $dsName) -ForegroundColor Cyan" ' Zapis kodu PS: Wyświetla przetwarzane źródło
     psFile.WriteLine " Write-Host ('Scanning folder AND subfolders: ' + $rawFolder) -ForegroundColor Yellow" ' Zapis kodu PS: Wyświetla nazwę skanowanego folderu
     psFile.WriteLine " try {"                       ' Zapis kodu PS: Rozpoczęcie bloku łapania błędów
-    psFile.WriteLine " New-PWLogin -DatasourceName $dsName -BentleyIMS -NonAdminLogin -Verbose | Out-Null" ' Zapis kodu PS: Procedura logowania do serwera Benteley
+    psFile.WriteLine " if ($loggedDs -ne $dsName) { if ($loggedDs) { Undo-PWLogin | Out-Null }; New-PWLogin -DatasourceName $dsName -BentleyIMS -NonAdminLogin -Verbose | Out-Null; $loggedDs = $dsName }" ' Logowanie tylko gdy zmienia sie datasource (wczesniej: osobne logowanie dla kazdego folderu)
     psFile.WriteLine " } catch {"                   ' Zapis kodu PS: Złapanie błędu logowania
     psFile.WriteLine " Write-Host ('Login ERROR: ' + $_.Exception.Message) -ForegroundColor Red" ' Zapis kodu PS: Wyświetlenie błędu czerwonym kolorem
     psFile.WriteLine " continue"                    ' Zapis kodu PS: Przejście do następnego folderu
@@ -402,9 +403,10 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     psFile.WriteLine " Write-Progress -Id 1 -Activity ""Fetching ALL documents (Recursive) from PW..."" -Status ""Folder $folderIndex of $totalFolders""" ' Zapis kodu PS: Wyświetla pasek pobierania
     
     psFile.WriteLine " $extra = @{}; if ($allVersions -and (Get-Command Get-PWDocumentsBySearch).Parameters.ContainsKey('GetVersionsToo')) { $extra['GetVersionsToo'] = $true }" ' Z GetVersionsToo wyszukiwanie zwraca tez starsze rewizje (A, B, C...)
+    psFile.WriteLine " $fetchWatch = [System.Diagnostics.Stopwatch]::StartNew()"
     psFile.WriteLine " $documents = @(Get-PWDocumentsBySearch -FolderID $pwFolder.ProjectID -GetAttributes @extra -WarningAction SilentlyContinue -ErrorAction SilentlyContinue)"
     psFile.WriteLine " $maxSeq = @{}; foreach ($d in $documents) { $u = [string]$d.DocumentURN; $sq = [int]$d.VersionSequence; if (-not $maxSeq.ContainsKey($u) -or $sq -gt $maxSeq[$u]) { $maxSeq[$u] = $sq } }" ' Najwyzsza wersja kazdego URN
-    psFile.WriteLine " Write-Host ('Found total documents: ' + $documents.Count) -ForegroundColor Green" ' Zapis kodu PS: Wypisanie ilości odnalezionych rekordów w terminalu
+    psFile.WriteLine " Write-Host ('Found total documents: ' + $documents.Count + ' (fetch from PW: ' + $fetchWatch.Elapsed.ToString('mm\:ss') + ')') -ForegroundColor Green"
     psFile.WriteLine " $totalDocs = $documents.Count" ' Zapis kodu PS: Utworzenie zmiennej limitu dokumentów w folderze
     psFile.WriteLine " $docIndex = 0"               ' Zapis kodu PS: Licznik przetwarzanych dokumentów na pętli
     psFile.WriteLine " foreach ($doc in $documents) {" ' Zapis kodu PS: Rozpoczęcie iterowania po paczce pobranych dokumentów
@@ -441,9 +443,10 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     psFile.WriteLine " $uDate = @($doc.DocumentUpdateDate, $doc.FileUpdateDate, $doc.UpdateDate, $doc.Updated, $doc.CreateDate) | Where-Object { $_ } | Select-Object -First 1" ' Zapis kodu PS: Identyczne zachowanie łapiące datę dla kompatybilności API wstecz
     psFile.WriteLine " $obj['Updated'] = if ($uDate -is [DateTime]) { $uDate.ToString('yyyy-MM-dd') } else { $uDate }" ' Zapis kodu PS: Ujednolicenie formatu do ROK-MC-DZIEŃ
     
+    psFile.WriteLine " $flat = @{}; foreach ($pp in $doc.psobject.Properties) { $flat[$pp.Name] = $pp.Value }; $ca = $doc.CustomAttributes; if ($ca) { if ($ca -is [System.Collections.IDictionary]) { foreach ($k in $ca.Keys) { if (-not $flat.ContainsKey([string]$k)) { $flat[[string]$k] = $ca[$k] } } } else { foreach ($pp in $ca.psobject.Properties) { if (-not $flat.ContainsKey($pp.Name)) { $flat[$pp.Name] = $pp.Value } } } }" ' Jednorazowe splaszczenie wlasciwosci dokumentu (szybkie wyszukiwanie atrybutow zamiast skanowania obiektow dla kazdego atrybutu)
     psFile.WriteLine " foreach ($attr in $selectedAttrs) {" ' Zapis kodu PS: Przechodzenie przez każdą nazwę atrybutu wpisaną w Excelu
     psFile.WriteLine " if ($attr -match '^(Name|Description|FileName|Updater|Updated)$') { continue }" ' Zapis kodu PS: Zablokowanie nadpisywania stałych systemowych, jeśli ktoś wpisał bzdury
-    psFile.WriteLine " $val = Get-Attr $doc $attr"
+    psFile.WriteLine " $val = $flat[$attr]"
     psFile.WriteLine " if ($val -is [DateTime]) { $val = $val.ToString('yyyy-MM-dd') }" ' Zapis kodu PS: Normalizacja, jeśli atrybut PW był typu Data
     psFile.WriteLine " elseif ($val -is [array]) { $val = ($val -join ', ') }" ' Zapis kodu PS: Złączenie atrybutów wielokrotnych (np. wiele tagów) przecinkami w jeden wiersz
     psFile.WriteLine " if ($val -is [string]) { $val = $val.Replace('|', '-').Replace(""`n"", ' ').Replace(""`r"", '').Trim() }" ' Zapis kodu PS: Zabezpieczenie CSV przed zepsuciem (znak potoku to separator, więc jest usuwany z tekstu użytkownika PW)
@@ -453,11 +456,12 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     psFile.WriteLine " }"                           ' Zapis kodu PS: Zakończenie pętli przechodzącej po dokumentach
     psFile.WriteLine " } else { Write-Host 'FOLDER NOT FOUND OR INVALID!' -ForegroundColor Red }" ' Zapis kodu PS: Błąd w terminalu w przypadku problemów z folderem
     psFile.WriteLine " } catch { Write-Host ('ERROR: ' + $_.Exception.Message) -ForegroundColor Red }" ' Zapis kodu PS: Czerwony błąd systemowy bazy dla pojedynczego wariantu
-    psFile.WriteLine " Undo-PWLogin | Out-Null"    ' Zapis kodu PS: Odłączenie od serwera Bentley dla danej iteracji folderowej, aby zachować poprawne sesje licencyjne
+
     psFile.WriteLine " $folderWatch.Stop()"         ' Zapis kodu PS: Zatrzymanie stopera lokalnego zadania
     psFile.WriteLine " Write-Host ('[TIMER] Folder processed in: ' + $folderWatch.Elapsed.ToString('hh\:mm\:ss')) -ForegroundColor Magenta" ' Zapis kodu PS: Wyświetlenie czasu wykonania operacji na jednej gałęzi folderowej
     psFile.WriteLine "})"                           ' Zapis kodu PS: Koniec wielkiej pętli nad folderami docelowymi
     psFile.WriteLine ""                             ' Zapis kodu PS: Pusty wiersz oddzielający kod pobierania i zapisu pliku
+    psFile.WriteLine "if ($loggedDs) { try { Undo-PWLogin | Out-Null } catch {} }"
     psFile.WriteLine "Write-Progress -Id 1 -Activity 'Completed' -Completed" ' Zapis kodu PS: Usunięcie paska pobierania z terminala po zakończeniu
     psFile.WriteLine "Write-Host ('TOTAL DOCUMENTS: ' + $results.Count) -ForegroundColor Cyan" ' Zapis kodu PS: Wypisanie ile całościowo zrzucono rekordów z pamięci serwera do RAM
     
