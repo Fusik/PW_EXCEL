@@ -4,7 +4,7 @@ Option Explicit
 ' =======================================================================
 ' TEST SZYBKOSCI POBIERANIA Z PW
 ' Pobiera pierwszy aktywny folder z arkusza Foldery kilkoma sposobami i zapisuje czasy w arkuszu Test_PW.
-' Uwaga: pierwszy wariant trwa tyle co zwykla aktualizacja (kilka minut); calosc ok. 10-15 min.
+' Uwaga: pierwszy wariant trwa tyle co zwykla aktualizacja (kilka minut); calosc 1-2 min.
 ' =======================================================================
 Public Sub TestSzybkosciPW()
     Dim wsF As Worksheet, r As Long, lastR As Long, lnk As String, found As String
@@ -16,7 +16,7 @@ Public Sub TestSzybkosciPW()
     Next r
     If found = "" Then MsgBox "Brak aktywnego linku w arkuszu " & SH_FOLDERS & ".", vbExclamation: Exit Sub
     If ThisWorkbook.Path = "" Then MsgBox "Zapisz najpierw plik na dysku.", vbCritical: Exit Sub
-    If MsgBox("Test pobierze folder z pierwszego aktywnego linku kilka razy roznymi sposobami (ok. 10-15 min):" & vbCrLf & vbCrLf & found & vbCrLf & vbCrLf & "Kontynuowac?", vbYesNo + vbQuestion, "Test szybkosci PW") <> vbYes Then Exit Sub
+    If MsgBox("Test pobierze folder z pierwszego aktywnego linku kilka razy roznymi sposobami (kilka minut):" & vbCrLf & vbCrLf & found & vbCrLf & vbCrLf & "Kontynuowac?", vbYesNo + vbQuestion, "Test szybkosci PW") <> vbYes Then Exit Sub
     
     Dim dsName As String, fp As String
     If Not ParseFolderLink(found, dsName, fp) Then MsgBox "Nie rozpoznano linku folderu.", vbExclamation: Exit Sub
@@ -33,7 +33,7 @@ Public Sub TestSzybkosciPW()
     psFile.WriteLine "$dsName = '" & Replace(dsName, "'", "''") & "'"
     psFile.WriteLine "$path = '" & Replace(fp, "'", "''") & "'"
     psFile.WriteLine "$loggedIn = $false"
-    psFile.WriteLine "$res = New-Object System.Collections.ArrayList"
+    psFile.WriteLine "$res = New-Object System.Collections.ArrayList; $dt = $null"
     psFile.WriteLine "try {"
     psFile.WriteLine "    Import-Module PWPS_DAB -Force | Out-Null"
     psFile.WriteLine "    Write-Host ('Logowanie do PW (' + $dsName + ')...') -ForegroundColor Cyan"
@@ -44,25 +44,24 @@ Public Sub TestSzybkosciPW()
     psFile.WriteLine "    if ($f.Count -eq 0) { throw 'Nie znaleziono folderu w ProjectWise.' }"
     psFile.WriteLine "    $id = $f[0].ProjectID"
     psFile.WriteLine "    $tests = [ordered]@{"
-    psFile.WriteLine "        '1 atrybuty + rewizje (obecny sposob)' = @{ GetAttributes = $true; GetVersionsToo = $true }"
-    psFile.WriteLine "        '2 atrybuty, bez rewizji'              = @{ GetAttributes = $true }"
     psFile.WriteLine "        '3 rewizje, bez atrybutow'             = @{ GetVersionsToo = $true }"
     psFile.WriteLine "        '4 bez opcji (sama lista)'             = @{}"
     psFile.WriteLine "        '5 atrybuty + rewizje + ReturnDataTable' = @{ GetAttributes = $true; GetVersionsToo = $true; ReturnDataTable = $true }"
     psFile.WriteLine "        '6 atrybuty + ReturnDataTable'         = @{ GetAttributes = $true; ReturnDataTable = $true }"
     psFile.WriteLine "    }"
     psFile.WriteLine "    foreach ($k in $tests.Keys) {"
-    psFile.WriteLine "        $p = $tests[$k]; $n = 0; $err = ''"
+    psFile.WriteLine "        $p = $tests[$k]; $n = 0; $err = ''; if ($null -eq $dt) { $dt = $null }"
     psFile.WriteLine "        Write-Host ('Test: ' + $k + ' ...') -ForegroundColor Yellow"
     psFile.WriteLine "        $sw = [System.Diagnostics.Stopwatch]::StartNew()"
     psFile.WriteLine "        try {"
     psFile.WriteLine "            $r = @(Get-PWDocumentsBySearch -FolderID $id @p -WarningAction SilentlyContinue -ErrorAction Stop)"
-    psFile.WriteLine "            if ($r.Count -eq 1 -and $r[0] -is [System.Data.DataTable]) { $n = $r[0].Rows.Count } else { $n = $r.Count }"
+    psFile.WriteLine "            if ($r.Count -eq 1 -and $r[0] -is [System.Data.DataTable]) { $n = $r[0].Rows.Count; if (-not $dt -and $r[0].Rows.Count -gt 0) { $dt = $r[0] } } else { $n = $r.Count }"
     psFile.WriteLine "        } catch { $err = $_.Exception.Message.Replace('|', '-') }"
     psFile.WriteLine "        $sw.Stop()"
     psFile.WriteLine "        Write-Host ('   dokumentow: ' + $n + '  czas: ' + $sw.Elapsed.ToString('mm\:ss') + $(if ($err) { '  BLAD: ' + $err } else { '' })) -ForegroundColor Green"
-    psFile.WriteLine "        [void]$res.Add([PSCustomObject]@{ 'Wariant' = $k; 'Dokumentow' = $n; 'Sekundy' = [math]::Round($sw.Elapsed.TotalSeconds, 1); 'Blad' = $err })"
+    psFile.WriteLine "        [void]$res.Add([PSCustomObject]@{ 'Wariant' = $k; 'Dokumentow' = $n; 'Sekundy' = [math]::Round($sw.Elapsed.TotalSeconds, 1); 'Uwagi' = $err })"
     psFile.WriteLine "    }"
+    psFile.WriteLine "    if ($dt) { $row = $dt.Rows[0]; foreach ($c in $dt.Columns) { $v = $row[$c.ColumnName]; if ($v -is [DBNull]) { $v = '' }; if ($v -is [DateTime]) { $v = $v.ToString('yyyy-MM-dd') }; $v = ([string]$v).Replace('|', '-').Replace([string][char]10, ' ').Replace([string][char]13, ''); [void]$res.Add([PSCustomObject]@{ 'Wariant' = ('[KOLUMNA] ' + $c.ColumnName); 'Dokumentow' = 0; 'Sekundy' = 0; 'Uwagi' = ($c.DataType.Name + ' | ' + $v) }) } }"
     psFile.WriteLine "    $res | Export-Csv -Path '" & csvPath & "' -NoTypeInformation -Delimiter '|' -Encoding UTF8"
     psFile.WriteLine "} catch {"
     psFile.WriteLine "    Write-Host ('BLAD: ' + $_.Exception.Message) -ForegroundColor Red"
@@ -86,7 +85,7 @@ Public Sub TestSzybkosciPW()
         ws.Name = "Test_PW"
     End If
     ws.Cells.Clear
-    ws.Range("A1:D1").Value = Array("Wariant", "Dokumentow", "Sekundy", "Blad")
+    ws.Range("A1:D1").Value = Array("Wariant", "Dokumentow", "Sekundy", "Uwagi")
     StyleHeader ws.Range("A1:D1")
     
     Dim stream As Object, rowsArr() As String, cols() As String, outR As Long, best As String, bestSec As Double
@@ -104,7 +103,8 @@ Public Sub TestSzybkosciPW()
                 ws.Cells(outR, 1).Value = cols(0)
                 ws.Cells(outR, 2).Value = Val(cols(1))
                 ws.Cells(outR, 3).Value = Val(cols(2))
-                ws.Cells(outR, 4).Value = cols(3)
+                ws.Cells(outR, 4).NumberFormat = "@": ws.Cells(outR, 4).Value = cols(3)
+                If UBound(cols) > 3 Then ws.Cells(outR, 4).Value = cols(3) & " | " & cols(4)
                 outR = outR + 1
             End If
         End If
