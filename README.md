@@ -56,3 +56,9 @@ Nazwy arkuszy, układ i kolory są w jednym miejscu: `src/modConfig.bas`.
 - Pasek postępu w Excelu i odczyt kodu wyjścia PowerShella; usunięcie `Start-Sleep 10` i oddzielne okno tylko przy błędzie.
 - Dopasowanie zakresu usunięć po prefiksie ścieżki zamiast `InStr` (dziś podfolder o podobnej nazwie może dać fałszywe trafienie).
 - Obcięcie komentarzy-historii w komórkach (rosną bez limitu).
+
+## Rewizje (V1.5)
+- `GET_ALL_VERSIONS` w `src/modConfig.bas` (domyślnie `True`): wyszukiwanie dostaje `-GetVersionsToo`, więc każda rewizja pliku (A…P) trafia do osobnego wiersza.
+- Starsza rewizja o tym samym `DocumentURN` dostaje w `PW Link` dopisek `?version=<VersionSequence>` (klucz musi być unikalny).
+- Dopasowanie po samej nazwie pliku działa tylko dla wierszy bez linku.
+- W arkuszu `Atrybuty` dodaj: `Version`, `VersionSequence` (rewizja/numer wersji), `WorkflowState` (nazwa stanu), opcjonalnie `Revision_number`. Atrybut `State` nie istnieje w tym PW.

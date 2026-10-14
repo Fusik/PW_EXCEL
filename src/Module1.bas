@@ -357,6 +357,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     psFile.WriteLine "$inputData = @(Get-Content $InputFile | Where-Object { $_.Trim() -ne '' })" ' Zapis kodu PS: Wczytanie zawartości pliku TXT (wiersze konfiguracji)
     psFile.WriteLine "$totalFolders = $inputData.Count" ' Zapis kodu PS: Obliczenie łącznej liczby zdefiniowanych folderów
     psFile.WriteLine "$folderIndex = 0"             ' Zapis kodu PS: Reset wskaźnika przetwarzanego folderu
+    psFile.WriteLine "$allVersions = " & IIf(GET_ALL_VERSIONS, "$true", "$false") ' Czy pobierac wszystkie rewizje plikow (modConfig)
     psFile.WriteLine "$okScopes = New-Object System.Collections.ArrayList" ' Lista folderów, które faktycznie udało się przeskanować (używana później do bezpiecznego oznaczania usunięć)
     psFile.WriteLine "$selectedAttrs = " & psArrayString ' Zapis kodu PS: Wstrzyknięcie z Excela tablicy z atrybutami (np. @('Attr1','Attr2'))
     psFile.WriteLine "function Get-Attr($d, $n) { $p = $d.psobject.Properties[$n]; if ($p) { return $p.Value }; foreach ($q in $d.psobject.Properties) { $v = $q.Value; if ($null -eq $v -or $v -is [string] -or $v -is [ValueType] -or $v -is [array]) { continue }; if ($v -is [System.Collections.IDictionary]) { if ($v.Contains($n)) { return $v[$n] } } else { $pp = $v.psobject.Properties[$n]; if ($pp) { return $pp.Value } } }; return $null }" ' Pomocnik: atrybut moze byc wlasciwoscia dokumentu albo siedziec w zagniezdzonym obiekcie/slowniku
@@ -396,7 +397,9 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     psFile.WriteLine " $pwFolder = $pwFoldersList[0]" ' Zapis kodu PS: Zapisuje id dopasowanego folderu
     psFile.WriteLine " Write-Progress -Id 1 -Activity ""Fetching ALL documents (Recursive) from PW..."" -Status ""Folder $folderIndex of $totalFolders""" ' Zapis kodu PS: Wyświetla pasek pobierania
     
-    psFile.WriteLine " $documents = @(Get-PWDocumentsBySearch -FolderID $pwFolder.ProjectID -GetAttributes -WarningAction SilentlyContinue -ErrorAction SilentlyContinue)" ' Zapis kodu PS: Główna, krytyczna funkcja zapytania do bazy danych i pobrania wszystkich plików z atrybutami
+    psFile.WriteLine " $extra = @{}; if ($allVersions -and (Get-Command Get-PWDocumentsBySearch).Parameters.ContainsKey('GetVersionsToo')) { $extra['GetVersionsToo'] = $true }" ' Z GetVersionsToo wyszukiwanie zwraca tez starsze rewizje (A, B, C...)
+    psFile.WriteLine " $documents = @(Get-PWDocumentsBySearch -FolderID $pwFolder.ProjectID -GetAttributes @extra -WarningAction SilentlyContinue -ErrorAction SilentlyContinue)"
+    psFile.WriteLine " $maxSeq = @{}; foreach ($d in $documents) { $u = [string]$d.DocumentURN; $sq = [int]$d.VersionSequence; if (-not $maxSeq.ContainsKey($u) -or $sq -gt $maxSeq[$u]) { $maxSeq[$u] = $sq } }" ' Najwyzsza wersja kazdego URN
     psFile.WriteLine " Write-Host ('Found total documents: ' + $documents.Count) -ForegroundColor Green" ' Zapis kodu PS: Wypisanie ilości odnalezionych rekordów w terminalu
     psFile.WriteLine " $totalDocs = $documents.Count" ' Zapis kodu PS: Utworzenie zmiennej limitu dokumentów w folderze
     psFile.WriteLine " $docIndex = 0"               ' Zapis kodu PS: Licznik przetwarzanych dokumentów na pętli
@@ -427,6 +430,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     psFile.WriteLine " if ($docClean.StartsWith('Documents\', [System.StringComparison]::OrdinalIgnoreCase)) { $docClean = $docClean.Substring(10) }" ' Zapis kodu PS: Obcięcie korzenia serwera
     psFile.WriteLine " $docClean = $docClean.Replace('\', '/')" ' Zapis kodu PS: Zamiana na standard sieciowy ukośników
     psFile.WriteLine " $docUrn = if ($doc.DocumentURN) { $doc.DocumentURN } elseif ($doc.URN) { $doc.URN } else { 'pw://' + $dsName + '/Documents/' + $docClean }" ' Zapis kodu PS: Generowanie unikalnego klucza hiperlinka URN konkretnego pliku
+    psFile.WriteLine " if ($doc.DocumentURN -and [int]$doc.VersionSequence -lt $maxSeq[[string]$doc.DocumentURN]) { $docUrn = $docUrn + '?version=' + $doc.VersionSequence }" ' Starsza rewizja o tym samym URN dostaje dopisek, by klucz byl unikalny
     psFile.WriteLine " $obj['PW Link'] = $docUrn"   ' Zapis kodu PS: Wstawienie URN
     psFile.WriteLine " $uName = @($doc.DocumentUpdaterName, $doc.FileUpdaterName, $doc.UpdaterName, $doc.Updater, $doc.CreatorName) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1" ' Zapis kodu PS: Sprytny dobór osoby edytującej, uwzględniający puste pola zależnie od wersji ProjectWise
     psFile.WriteLine " $obj['Updater'] = if ($uName) { $uName } else { 'Unknown (PW)' }" ' Zapis kodu PS: Wstawienie nazwy autora zmian
@@ -731,7 +735,7 @@ Private Sub ProcessSingleCSVRow(ws1 As Worksheet, rawRow As String, csvHeaders()
         srchRow = headerRow + 1                     ' Wskocz dokładnie 1 niżej od Zielonego foldera głównego znalezionego u góry
         Do While Trim(ws1.Cells(srchRow, 1).Value) <> "" ' Kręć tak długo aż kolumna nazwy pliku nie będzie pusta w arkuszu
             If Trim(ws1.Cells(srchRow, pathCol).Value) = "" Then Exit Do ' Wyskocz z błędu gdy pod nazwą znajduje się nagle pusty path... Oznacza że uderzyliśmy w Kolejny inny Folder Zielony - ten plik w ogóle tutaj fizycznie się nie znajdował! Przerywaj poszukiwanie po "FileName" w dół by nie zmarnować godzin.
-            If StrComp(Trim(ws1.Cells(srchRow, 1).Value), fName, vbTextCompare) = 0 Then ' Ale gdy trafiliśmy na starą "Pustą/Niezgodną z URN nazwę i jest tak samo równa (Case insensitive poprzez StrComp)" co wygenerowany fName do pliku... TO JEST TEN ZGUBIONY DUPLIKAT NAZWY I JEST ON PRZETWARZANY
+            If StrComp(Trim(ws1.Cells(srchRow, 1).Value), fName, vbTextCompare) = 0 And Trim(CStr(ws1.Cells(srchRow, urnCol).Value)) = "" Then ' po nazwie tylko wiersze bez linku (rewizje o tej samej nazwie inaczej nadpisywalyby sie) ' Ale gdy trafiliśmy na starą "Pustą/Niezgodną z URN nazwę i jest tak samo równa (Case insensitive poprzez StrComp)" co wygenerowany fName do pliku... TO JEST TEN ZGUBIONY DUPLIKAT NAZWY I JEST ON PRZETWARZANY
                 foundRow = srchRow                  ' Przypisz mu wiersz Excelowy bo to on (Mamy go!). I zamknij operowanie logiki do "0" by nadpisać. Zamiast tworzyć powielany wiersz jako "New Line"
                 Exit Do                             ' Ucieczka z pętli po dobrym wyszukaniu - Oszczędność prądu.
             End If                                  ' Zakończenie wariantowania.

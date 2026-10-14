@@ -26,6 +26,9 @@ Public Const ATTRS_SAMPLE_FOLDER As String = "B3"   ' Komórka z folderem próbn
 ' --- Układ arkusza "Baza_PW" ---
 Public Const DATA_HEADER_ROW As Long = 11           ' Wiersz nagłówków; dane od następnego wiersza
 
+' --- Pobieranie ---
+Public Const GET_ALL_VERSIONS As Boolean = True     ' True = kazda rewizja pliku (A, B, C...) w osobnym wierszu; False = tylko biezaca
+
 ' --- Kolory (wartości RGB policzone: R + G*256 + B*65536) ---
 Public Const CLR_HEADER As Long = 6567967          ' granat  RGB(31,56,100)  - nagłówki
 Public Const CLR_FOLDER As Long = 16247773         ' jasny niebieski RGB(221,235,247) - wiersz folderu
