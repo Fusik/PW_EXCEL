@@ -1,36 +1,60 @@
 Attribute VB_Name = "Module3"
 ' =======================================================================
-' ZBADANIE UKRYTYCH ATRYBUTÓW (PROPERTY NAMES)
-' Pobiera jeden plik ze wskazanej ścieżki i bada jego surowe atrybuty systemowe,
-' aby ułatwić dodawanie nowych kolumn w Sheet_3.
+' WYKRYWANIE ATRYBUTOW PW (diagnostyka) + AUTOMAT PO WKLEJENIU LINKU
+' DiscoverAttributes: loguje sie do PW, bierze 1 dokument z folderu, zapisuje jego
+' wlasciwosci w arkuszu Diagnostyka i DOPISUJE nowe atrybuty do arkusza Atrybuty.
+' OnFolderLinkPasted: wywolywane po wklejeniu linku w arkuszu Foldery (ThisWorkbook).
 ' =======================================================================
+
+' Przycisk "ZBADAJ ATRYBUTY": pierwszy aktywny folder z arkusza Foldery
 Sub ZbadajAtrybutyPW()
-    Dim ws2 As Worksheet, wsDiag As Worksheet
-    Dim folderPath As String, basePath As String
+    Dim wsF As Worksheet, r As Long, lastR As Long, lnk As String
+    Set wsF = ThisWorkbook.Sheets(SH_FOLDERS)
+    lastR = wsF.Cells(wsF.Rows.Count, FOLDERS_LINK_COL).End(xlUp).Row
+    For r = FOLDERS_FIRST_ROW To lastR
+        lnk = Trim(CStr(wsF.Cells(r, FOLDERS_LINK_COL).Value))
+        If UCase(Left(lnk, 3)) = "PW:" And UCase(Trim(CStr(wsF.Cells(r, FOLDERS_ACTIVE_COL).Value))) <> "NIE" Then
+            DiscoverAttributes lnk
+            Exit Sub
+        End If
+    Next r
+    MsgBox "Brak aktywnego linku w arkuszu " & SH_FOLDERS & " (kolumna B). Wklej link do folderu PW.", vbExclamation
+End Sub
+
+' Wywolywane po wklejeniu/zmianie linku w kolumnie B arkusza Foldery: wykryj atrybuty, potem pobierz dane
+Public Sub OnFolderLinkPasted(ByVal Target As Range)
+    Static busy As Boolean
+    If busy Then Exit Sub
+    If Target.Cells.Count > 20 Then Exit Sub        ' ochrona przed kasowaniem/wklejaniem calych kolumn
+    busy = True
+    Dim c As Range, ok As Boolean, lnk As String
+    On Error GoTo Fail
+    Application.EnableEvents = False
+    For Each c In Target.Cells
+        lnk = Trim(CStr(c.Value))
+        If UCase(Left(lnk, 3)) = "PW:" And UCase(Trim(CStr(c.Worksheet.Cells(c.Row, FOLDERS_ACTIVE_COL).Value))) <> "NIE" Then
+            If DiscoverAttributes(lnk, True) Then ok = True
+        End If
+    Next c
+    Application.EnableEvents = True
+    If ok And AUTO_DOWNLOAD_AFTER_PASTE Then DownloadFromProjectWise_PWPS
+    busy = False
+    Exit Sub
+Fail:
+    Application.EnableEvents = True
+    busy = False
+    MsgBox "Blad automatu po wklejeniu linku: " & Err.Description, vbCritical
+End Sub
+
+Public Function DiscoverAttributes(ByVal folderLink As String, Optional ByVal quiet As Boolean = False) As Boolean
+    Dim wsDiag As Worksheet, basePath As String
     Dim psScriptPath As String, csvOutputPath As String
     Dim fso As Object, wsh As Object
-    Dim execResult As Long
     Dim r As Long, cols() As String, cleanRow As String
     
     If ThisWorkbook.Path = "" Then
         MsgBox "Zapisz najpierw plik Excel na dysku!", vbCritical
-        Exit Sub
-    End If
-    
-    ' Odczytanie testowej ścieżki wpisanej w Sheet_3 (Komórka B2)
-    On Error Resume Next
-    Set ws2 = ThisWorkbook.Sheets(SH_ATTRS)
-    On Error GoTo 0
-    
-    If ws2 Is Nothing Then
-        MsgBox "Brak arkusza '" & SH_ATTRS & "'.", vbExclamation
-        Exit Sub
-    End If
-    
-    folderPath = ws2.Range(ATTRS_SAMPLE_FOLDER).Value
-    If Trim(folderPath) = "" Then
-        MsgBox "Brak folderu w arkuszu " & SH_ATTRS & " (komórka " & ATTRS_SAMPLE_FOLDER & "). Wpisz tam ścieżkę do folderu PW, aby pobrać jego atrybuty.", vbExclamation
-        Exit Sub
+        Exit Function
     End If
     
     basePath = ThisWorkbook.Path
@@ -39,9 +63,9 @@ Sub ZbadajAtrybutyPW()
     Set fso = CreateObject("Scripting.FileSystemObject")
     
     Dim dsName As String, fp As String
-    If Not ParseFolderLink(folderPath, dsName, fp) Then
-        MsgBox "Nie rozpoznano linku folderu próbnego. Oczekiwany format: pw:\\serwer:Datasource\Documents\Projekt\Folder\ (zobacz arkusz Instrukcja).", vbExclamation
-        Exit Sub
+    If Not ParseFolderLink(folderLink, dsName, fp) Then
+        MsgBox "Nie rozpoznano linku folderu. Oczekiwany format: pw:\\serwer:Datasource\Documents\Projekt\Folder\ (zobacz arkusz Instrukcja).", vbExclamation
+        Exit Function
     End If
     On Error Resume Next
     fso.DeleteFile csvOutputPath ' stary wynik nie moze udawac nowego
@@ -60,35 +84,28 @@ Sub ZbadajAtrybutyPW()
     psFile.WriteLine "    $loggedIn = $true"
     psFile.WriteLine "    Write-Host ('Szukam folderu: ' + $folderPath) -ForegroundColor Yellow"
     psFile.WriteLine "    $fl = @(Get-PWFolders -FolderPath $folderPath -ErrorAction SilentlyContinue)"
-    psFile.WriteLine "    if ($fl.Count -eq 0) { $fl = @(Get-PWFolders -FolderPath ('\' + $folderPath) -ErrorAction SilentlyContinue) }"
-    psFile.WriteLine "    if ($fl.Count -eq 0) { $fl = @(Get-PWFolders -FolderName $folderPath.Split('\')[-1] -ErrorAction SilentlyContinue) }"
-    psFile.WriteLine "    if ($fl.Count -eq 0) { throw 'Nie znaleziono folderu w ProjectWise. Sprawdz link folderu probnego w arkuszu Atrybuty.' }"
+    psFile.WriteLine "    if ($fl.Count -eq 0) { $fl = @(Get-PWFolders -FolderPath ('' + $folderPath) -ErrorAction SilentlyContinue) }"
+    psFile.WriteLine "    if ($fl.Count -eq 0) { $fl = @(Get-PWFolders -FolderName $folderPath.Split('')[-1] -ErrorAction SilentlyContinue) }"
+    psFile.WriteLine "    if ($fl.Count -eq 0) { throw 'Nie znaleziono folderu w ProjectWise. Sprawdz link w arkuszu Foldery.' }"
     psFile.WriteLine "    Write-Host 'Pobieram dokumenty z atrybutami (moze chwile potrwac)...' -ForegroundColor Yellow"
     psFile.WriteLine "    $doc = Get-PWDocumentsBySearch -FolderID $fl[0].ProjectID -GetAttributes -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Select-Object -First 1"
-    psFile.WriteLine "    if (-not $doc) { throw 'Folder nie zawiera dokumentow - wskaz folder z plikami.' }"
+    psFile.WriteLine "    if (-not $doc) { throw 'Folder nie zawiera dokumentow - wklej link do folderu z plikami.' }"
     psFile.WriteLine "    $out = New-Object System.Collections.ArrayList"
     psFile.WriteLine "    $seen = @{}"
     psFile.WriteLine "    function Clean($v) { if ($v -is [array]) { $v = ($v -join ', ') }; if ($v -is [DateTime]) { $v = $v.ToString('yyyy-MM-dd') }; if ($v -is [string]) { $v = $v.Replace('|', '-').Replace([string][char]10, ' ').Replace([string][char]13, '') }; return $v }"
     psFile.WriteLine "    foreach ($p in $doc.psobject.Properties) {"
-    psFile.WriteLine "        [void]$out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = $p.Name; 'Wartosc' = (Clean $p.Value) })"
+    psFile.WriteLine "        [void]$out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = $p.Name; 'Wartosc' = (Clean $p.Value); 'Typ' = 'SYSTEM' })"
     psFile.WriteLine "        $seen[$p.Name] = $true"
     psFile.WriteLine "    }"
     psFile.WriteLine "    foreach ($p in $doc.psobject.Properties) {"
+    psFile.WriteLine "        if ($p.Name -ne 'CustomAttributes' -or $null -eq $p.Value) { continue }"
     psFile.WriteLine "        $v = $p.Value"
-    psFile.WriteLine "        if ($null -eq $v -or $v -is [string] -or $v -is [ValueType] -or $v -is [array]) { continue }"
-    psFile.WriteLine "        if ($v -is [System.Collections.IDictionary]) { $pairs = @($v.Keys | Select-Object -First 200 | ForEach-Object { @{ N = [string]$_; V = $v[$_] } }) }"
-    psFile.WriteLine "        else { $pairs = @($v.psobject.Properties | Select-Object -First 200 | ForEach-Object { @{ N = $_.Name; V = $_.Value } }) }"
+    psFile.WriteLine "        if ($v -is [System.Collections.IDictionary]) { $pairs = @($v.Keys | ForEach-Object { @{ N = [string]$_; V = $v[$_] } }) }"
+    psFile.WriteLine "        else { $pairs = @($v.psobject.Properties | ForEach-Object { @{ N = $_.Name; V = $_.Value } }) }"
     psFile.WriteLine "        foreach ($q in $pairs) {"
-    psFile.WriteLine "            if (-not $seen.ContainsKey($q.N)) { [void]$out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = $q.N; 'Wartosc' = (Clean $q.V) }); $seen[$q.N] = $true }"
+    psFile.WriteLine "            if (-not $seen.ContainsKey($q.N)) { [void]$out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = $q.N; 'Wartosc' = (Clean $q.V); 'Typ' = 'ATRYBUT' }); $seen[$q.N] = $true }"
     psFile.WriteLine "        }"
     psFile.WriteLine "    }"
-    psFile.WriteLine "    $uName = @($doc.DocumentUpdaterName, $doc.FileUpdaterName, $doc.UpdaterName, $doc.Updater, $doc.CreatorName) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -First 1"
-    psFile.WriteLine "    [void]$out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = 'Updater'; 'Wartosc' = $(if ($uName) { $uName } else { 'Unknown' }) })"
-    psFile.WriteLine "    $uDate = @($doc.DocumentUpdateDate, $doc.FileUpdateDate, $doc.UpdateDate, $doc.Updated, $doc.CreateDate) | Where-Object { $_ } | Select-Object -First 1"
-    psFile.WriteLine "    [void]$out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = 'Updated'; 'Wartosc' = (Clean $uDate) })"
-    psFile.WriteLine "    $gc = Get-Command Get-PWDocumentsBySearch -ErrorAction SilentlyContinue"
-    psFile.WriteLine "    if ($gc) { foreach ($k in $gc.Parameters.Keys) { [void]$out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = ('[PARAM] ' + $k); 'Wartosc' = $gc.Parameters[$k].ParameterType.Name }) } }"
-    psFile.WriteLine "    foreach ($c in @(Get-Command -Module PWPS_DAB | Where-Object { $_.Name -match 'Version|Revision|History|State' })) { [void]$out.Add([PSCustomObject]@{ 'Nazwa_Wewnetrzna' = ('[CMD] ' + $c.Name); 'Wartosc' = (($c.Parameters.Keys | Where-Object { $_ -notmatch 'Verbose|Debug|Action|Variable|Buffer|Warning' }) -join ', ') }) }"
     psFile.WriteLine "    $out | Export-Csv -Path '" & csvOutputPath & "' -NoTypeInformation -Delimiter '|' -Encoding UTF8"
     psFile.WriteLine "    Write-Host ('Zapisano ' + $out.Count + ' atrybutow. Plik: ' + $doc.Name) -ForegroundColor Green"
     psFile.WriteLine "} catch {"
@@ -97,75 +114,108 @@ Sub ZbadajAtrybutyPW()
     psFile.WriteLine "} finally {"
     psFile.WriteLine "    if ($loggedIn) { try { Undo-PWLogin | Out-Null } catch {} }"
     psFile.WriteLine "}"
-    psFile.WriteLine "Start-Sleep -Seconds 2"
+    psFile.WriteLine "Start-Sleep -Seconds 1"
     psFile.Close
     
-    ' Wykonanie skryptu w tle
     Set wsh = CreateObject("WScript.Shell")
-    execResult = wsh.Run("powershell.exe -ExecutionPolicy Bypass -File """ & psScriptPath & """", 1, True)
+    wsh.Run "powershell.exe -ExecutionPolicy Bypass -File """ & psScriptPath & """", 1, True
     
-    ' Zrzut pliku wynikowego CSV do nowego arkusza Excel
     If fso.FileExists(csvOutputPath) Then
         On Error Resume Next
         Set wsDiag = ThisWorkbook.Sheets(SH_DIAG)
         If wsDiag Is Nothing Then
-            Set wsDiag = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.count))
+            Set wsDiag = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
             wsDiag.Name = SH_DIAG
         End If
         On Error GoTo 0
         
         wsDiag.Cells.Clear
-        wsDiag.Cells(1, 1).Value = "Nazwa atrybutu (skopiuj do kolumny A w arkuszu " & SH_ATTRS & ")"
-        wsDiag.Cells(1, 2).Value = "Przykładowa wartość (z 1 pliku)"
-        StyleHeader wsDiag.Range("A1:B1")
+        wsDiag.Range("A1:C1").Value = Array("Nazwa atrybutu", "Przykladowa wartosc (z 1 pliku)", "Typ")
+        StyleHeader wsDiag.Range("A1:C1")
         
-        Dim stream As Object, csvData As String, rowsArr() As String
+        Dim stream As Object, csvData As String, rowsArr() As String, outR As Long
         Set stream = CreateObject("ADODB.Stream")
         stream.Charset = "utf-8"
         stream.Open
         stream.LoadFromFile csvOutputPath
         If Not stream.EOS Then
-            csvData = stream.ReadText
-            csvData = Replace(csvData, vbCrLf, vbLf)
-            csvData = Replace(csvData, vbCr, vbLf)
+            csvData = Replace(Replace(stream.ReadText, vbCrLf, vbLf), vbCr, vbLf)
             rowsArr = Split(csvData, vbLf)
-            
-            Dim outR As Long
             outR = 2
             For r = 1 To UBound(rowsArr)
                 If Trim(rowsArr(r)) <> "" Then
-                    cleanRow = Replace(rowsArr(r), """", "")
-                    cols = Split(cleanRow, "|")
-                    If UBound(cols) >= 1 Then
+                    cols = Split(Replace(rowsArr(r), """", ""), "|")
+                    If UBound(cols) >= 2 Then
                         wsDiag.Cells(outR, 1).Value = Trim(cols(0))
+                        wsDiag.Cells(outR, 2).NumberFormat = "@"
                         wsDiag.Cells(outR, 2).Value = Trim(cols(1))
-                        
-                        ' Wyróżnienie naszych sztucznych atrybutów
-                        If Trim(cols(0)) = "Updater" Or Trim(cols(0)) = "Updated" Then
-                            wsDiag.Range(wsDiag.Cells(outR, 1), wsDiag.Cells(outR, 2)).Interior.Color = CLR_CHANGED
-                            wsDiag.Range(wsDiag.Cells(outR, 1), wsDiag.Cells(outR, 2)).Font.Bold = True
-                        End If
-                        
+                        wsDiag.Cells(outR, 3).Value = Trim(cols(2))
                         outR = outR + 1
                     End If
                 End If
             Next r
         End If
         stream.Close
+        wsDiag.Columns("A:C").AutoFit
         
-        wsDiag.Columns("A:B").AutoFit
-        wsDiag.Activate
-        MsgBox "Diagnostyka zakończona! Sprawdź arkusz '" & SH_DIAG & "'.", vbInformation
+        Dim added As Long
+        added = MergeAttributes(wsDiag)
+        DiscoverAttributes = True
+        If Not quiet Then
+            wsDiag.Activate
+            MsgBox "Gotowe. Dopisano " & added & " nowych atrybutow do arkusza " & SH_ATTRS & ".", vbInformation
+        End If
     Else
-        MsgBox "Nie udało się wygenerować pliku CSV. Sprawdź okno PowerShell.", vbCritical
+        MsgBox "Nie udalo sie wykryc atrybutow. Sprawdz okno PowerShell i link folderu.", vbCritical
     End If
     
-    ' Sprzątanie po sobie
     On Error Resume Next
     fso.DeleteFile psScriptPath
     fso.DeleteFile csvOutputPath
     On Error GoTo 0
-End Sub
+End Function
+
+' Dopisuje do arkusza Atrybuty nazwy z Diagnostyki, ktorych jeszcze tam nie ma (nic nie kasuje, nie rusza Twoich ustawien TAK/NIE)
+Private Function MergeAttributes(wsDiag As Worksheet) As Long
+    Dim wsA As Worksheet, known As Object, r As Long, lastD As Long, lastA As Long, nm As String, n As Long
+    Dim typ As String, pobierac As String
+    Set wsA = ThisWorkbook.Sheets(SH_ATTRS)
+    Set known = CreateObject("Scripting.Dictionary")
+    known.CompareMode = 1
+    lastA = wsA.Cells(wsA.Rows.Count, 1).End(xlUp).Row
+    If lastA < ATTRS_FIRST_ROW - 1 Then lastA = ATTRS_FIRST_ROW - 1
+    For r = ATTRS_FIRST_ROW To lastA
+        nm = Trim(CStr(wsA.Cells(r, 1).Value))
+        If nm <> "" Then known(nm) = r
+    Next r
+    lastD = wsDiag.Cells(wsDiag.Rows.Count, 1).End(xlUp).Row
+    For r = 2 To lastD
+        nm = Trim(CStr(wsDiag.Cells(r, 1).Value))
+        typ = Trim(CStr(wsDiag.Cells(r, 3).Value))
+        If nm <> "" Then
+            If known.Exists(nm) Then
+                wsA.Cells(known(nm), ATTRS_EXAMPLE_COL).Value = "'" & CStr(wsDiag.Cells(r, 2).Value)   ' odswiez przyklad
+            Else
+                lastA = lastA + 1
+                wsA.Cells(lastA, 1).Value = nm
+                ' atrybuty projektu: domyslnie TAK; wlasciwosci systemowe: tylko przydatne, reszta NIE (do wlaczenia recznie)
+                If typ = "ATRYBUT" Then
+                    pobierac = "TAK"
+                ElseIf InStr(1, "," & ATTRS_SYSTEM_DEFAULTS & ",", "," & nm & ",", vbTextCompare) > 0 Then
+                    pobierac = "TAK"
+                Else
+                    pobierac = "NIE"
+                End If
+                wsA.Cells(lastA, ATTRS_ENABLE_COL).Value = pobierac
+                wsA.Cells(lastA, ATTRS_TYPE_COL).Value = typ
+                wsA.Cells(lastA, ATTRS_EXAMPLE_COL).Value = "'" & CStr(wsDiag.Cells(r, 2).Value)
+                known(nm) = lastA
+                n = n + 1
+            End If
+        End If
+    Next r
+    MergeAttributes = n
+End Function
 
 Private Function ParseFolderLink(ByVal link As String, ByRef ds As String, ByRef fp As String) As Boolean
     Dim s As String, p As Long

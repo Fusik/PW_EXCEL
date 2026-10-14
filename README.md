@@ -1,6 +1,6 @@
 # PW_EXCEL – eksport zawartości ProjectWise do Excela
 
-`PW_integration_imported.xlsm` pobiera listę plików (z atrybutami) z folderów ProjectWise przez moduł PowerShell `PWPS_DAB`
+`PW_integration.xlsm` pobiera listę plików (z atrybutami) z folderów ProjectWise przez moduł PowerShell `PWPS_DAB`
 i utrzymuje ją w `Sheet_1` jako **deltę** (nowe / zmienione / usunięte pliki).
 
 ## Arkusze
@@ -23,15 +23,19 @@ Nazwy arkuszy, układ i kolory są w jednym miejscu: `src/modConfig.bas`.
    - zmiana atrybutu → żółta komórka, komentarz ze starą wartością, `CHANGED`
    - plik zniknął z PW → czerwony przekreślony wiersz, `DELETED`
 
-## Plik główny
-`PW_integration_imported.xlsm` – skoroszyt z już wgranym kodem VBA (zgodnym z `src/`). Nie trzeba nic importować.
-`Import-VBA.ps1` jest potrzebny tylko, gdy kod w `src/` zmieni się po wydaniu pliku (uruchom przez
-`powershell -ExecutionPolicy Bypass -File .\Import-VBA.ps1` na kopii pliku).
+## Plik główny i wdrożenie
+`PW_integration.xlsm` – nowy układ (V1.6). Kod VBA w środku jest jeszcze stary, więc **raz** uruchom `Import-VBA.bat`
+(Excel zamknięty, na kopii pliku; wymaga włączonego „Ufaj dostępowi do modelu obiektowego projektu VBA”) – wgra `src/` do skoroszytu.
+
+## Automat (V1.6)
+- Wklejenie linku w `Foldery!B` → wykrycie atrybutów (`Diagnostyka`) → dopisanie do `Atrybuty` (TAK/NIE, typ, przykład) → pobranie danych
+  (`AUTO_DOWNLOAD_AFTER_PASTE` w `modConfig`).
+- `Widoki` (definicje kolumn: nazwy lub litery, np. `A, B, F, L, TK`) + `Widok` (wybór w B3; kopia `Baza_PW` w wybranej kolejności).
 
 ## Pliki w repo
 - `src/` – kod VBA wyciągnięty ze skoroszytu (podgląd/diffy; formularze bez układu graficznego).
 - `tools/build_workbook.py` – skrypt, który z oryginału (`tools/original/`) buduje nowy układ arkuszy na poziomie XML
-  (`python3 tools/build_workbook.py tools/original/PW_integrationg_original.xlsm PW_integration_imported.xlsm`).
+  (`python3 tools/build_workbook.py tools/original/PW_integrationg_original.xlsm PW_integration.xlsm`).
 - `Import-VBA.ps1` – wgrywa `src/` do skoroszytu (tylko po zmianach w kodzie).
 
 ## Zmiany w V1.4 (UI)

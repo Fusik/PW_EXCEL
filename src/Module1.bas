@@ -138,6 +138,9 @@ Private Sub RunDownload()                           ' Właściwa logika orkiestr
     End If                                          ' Zakończenie bloku tworzenia tabeli końcowej
     ' --------------------------------------------------------------
     
+    On Error Resume Next
+    BuildView                                       ' Odswiez arkusz Widok wg wybranego widoku
+    On Error GoTo 0
     AddLogEntry "INFO", "OPERATION COMPLETED", "-", "-", "-", "-", 0 ' Zapisanie w logach informacji o pomyślnym zakończeniu makra
     wsLog.Columns("A:G").AutoFit                    ' Automatyczne dopasowanie szerokości kolumn w arkuszu logów
     ws1.Activate                                    ' Aktywowanie arkusza 1 na sam koniec działania makra
@@ -183,6 +186,7 @@ Private Function GetAttributesFromSheet3() As String ' Deklaracja funkcji zwraca
     
     For i = ATTRS_FIRST_ROW To lastRow               ' Pętla po wierszach z atrybutami
         attrName = Trim(ws3.Cells(i, 1).Value)      ' Pobranie nazwy atrybutu z komórki i usunięcie zbędnych spacji
+        If UCase(Trim(CStr(ws3.Cells(i, ATTRS_ENABLE_COL).Value))) = "NIE" Then attrName = "" ' atrybut wylaczony w arkuszu Atrybuty
         If attrName <> "" Then                      ' Sprawdzenie czy komórka nie była pusta
             psArray = psArray & "'" & attrName & "'," ' Doklejenie atrybutu w apostrofach i przecinka do stringu
             count = count + 1                       ' Zwiększenie licznika dodanych atrybutów
@@ -1055,7 +1059,7 @@ Sub CopyHeadersFromSheet3()
     
     cCol = START_COL_S1
     For r = ATTRS_FIRST_ROW To lastRow3
-        If Trim(CStr(ws3.Cells(r, 1).Value)) <> "" Then ' Puste wiersze są pomijane - tak samo jak w GetAttributesFromSheet3, więc kolejność kolumn zgadza się z CSV
+        If Trim(CStr(ws3.Cells(r, 1).Value)) <> "" And UCase(Trim(CStr(ws3.Cells(r, ATTRS_ENABLE_COL).Value))) <> "NIE" Then ' Puste wiersze są pomijane - tak samo jak w GetAttributesFromSheet3, więc kolejność kolumn zgadza się z CSV
             ws1.Cells(11, cCol).Value = Trim(CStr(ws3.Cells(r, 1).Value))
             StyleHeader ws1.Cells(11, cCol)
             cCol = cCol + 1
