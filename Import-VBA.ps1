@@ -17,7 +17,7 @@ New-Item $tmp -ItemType Directory | Out-Null
 $ansi = [System.Text.Encoding]::GetEncoding(1250)   # VBE oczekuje kodowania ANSI, nie UTF-8
 function Read-Src($name) { (Get-Content (Join-Path $PSScriptRoot "src\$name") -Raw -Encoding UTF8) -replace "`r?`n", "`r`n" }
 
-$modules = 'modConfig', 'modViews', 'Module1', 'Module2', 'Module3'
+$modules = 'modConfig', 'modViews', 'modBench', 'Module1', 'Module2', 'Module3'
 foreach ($m in $modules) { [IO.File]::WriteAllText((Join-Path $tmp "$m.bas"), (Read-Src "$m.bas"), $ansi) }
 
 # komponenty z kodem "w środku": plik źródłowy -> nazwa komponentu w skoroszycie

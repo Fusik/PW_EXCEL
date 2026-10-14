@@ -241,7 +241,7 @@ new_d1 = (hdr_d + button(2, 'btnUpdate', 'DownloadFromProjectWise_PWPS', 'AKTUAL
 files['xl/drawings/drawing1.xml'] = new_d1.encode('utf-8')
 # drawing2 (Atrybuty): jeden przycisk w C3
 d2 = T('xl/drawings/drawing2.xml')
-new_d2 = d2[:d2.index('<xdr:twoCellAnchor')] + button(2, 'btnProbe', 'ZbadajAtrybutyPW', 'WYKRYJ ATRYBUTY ▶', (3, 95250), (3, 2300000), (2, 30000), (2, 400000), '2F5597') + '</xdr:wsDr>'
+new_d2 = d2[:d2.index('<xdr:twoCellAnchor')] + button(2, 'btnProbe', 'ZbadajAtrybutyPW', 'WYKRYJ ATRYBUTY ▶', (3, 95250), (3, 2300000), (2, 30000), (2, 400000), '2F5597') + button(3, 'btnBench', 'TestSzybkosciPW', 'TEST SZYBKOŚCI PW', (4, 95250), (4, 2300000), (2, 30000), (2, 400000), '7F7F7F') + '</xdr:wsDr>'
 files['xl/drawings/drawing2.xml'] = new_d2.encode('utf-8')
 
 # ------------------------------------------------------------------ Widoki (definicje) + Widok (wynik)
@@ -355,6 +355,7 @@ tr('W Log: WARNING „Scope not scanned”', 'Nie udało się zalogować lub zna
 tr('Okno PowerShell: FOLDER NOT FOUND', 'Zła ścieżka lub brak uprawnień do folderu.', 'Skopiuj link ponownie z ProjectWise Explorer.')
 tr('Kolumna atrybutu jest pusta', 'Nazwa atrybutu nie istnieje w tym folderze albo ma inną pisownię.', 'Sprawdź nazwę w arkuszu Diagnostyka / Atrybuty; atrybuty zależą od folderu i klasy dokumentu.')
 tr('„Please save the Excel workbook…”', 'Plik nie jest zapisany na dysku.', 'Zapisz skoroszyt w zwykłym folderze i uruchom ponownie.')
+tr('Pobieranie trwa bardzo długo', 'Czas zjada serwer PW (pobieranie atrybutów i rewizji), nie Excel.', 'Arkusz Atrybuty → „TEST SZYBKOŚCI PW”: porównuje sposoby pobierania i zapisuje czasy w arkuszu Test_PW. Mniej czasu daje też wyłączenie rewizji (GET_ALL_VERSIONS w modConfig).')
 tr('Makra nie działają', 'Plik zablokowany po pobraniu.', 'Właściwości pliku → Odblokuj; w Excelu włącz zawartość (makra).')
 I.merge(2, 3, 4, 3)
 I.put(2, 3, 'Wersja skoroszytu: V1.6  ·  Wystarczy wkleić link w arkuszu Foldery – resztę robi makro. Własne ustawienia: Atrybuty (TAK/NIE) i Widoki.', 'note', ht=22)

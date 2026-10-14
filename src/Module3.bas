@@ -217,7 +217,7 @@ Private Function MergeAttributes(wsDiag As Worksheet) As Long
     MergeAttributes = n
 End Function
 
-Private Function ParseFolderLink(ByVal link As String, ByRef ds As String, ByRef fp As String) As Boolean
+Public Function ParseFolderLink(ByVal link As String, ByRef ds As String, ByRef fp As String) As Boolean
     Dim s As String, p As Long
     s = Replace(Trim(link), "/", "\")
     If UCase(Left(s, 3)) = "PW:" Then s = Mid(s, 4)
