@@ -1,6 +1,6 @@
 # PW_EXCEL – eksport zawartości ProjectWise do Excela
 
-`PW_integrationg.xlsm` pobiera listę plików (z atrybutami) z folderów ProjectWise przez moduł PowerShell `PWPS_DAB`
+`PW_integration_imported.xlsm` pobiera listę plików (z atrybutami) z folderów ProjectWise przez moduł PowerShell `PWPS_DAB`
 i utrzymuje ją w `Sheet_1` jako **deltę** (nowe / zmienione / usunięte pliki).
 
 ## Arkusze
@@ -23,16 +23,16 @@ Nazwy arkuszy, układ i kolory są w jednym miejscu: `src/modConfig.bas`.
    - zmiana atrybutu → żółta komórka, komentarz ze starą wartością, `CHANGED`
    - plik zniknął z PW → czerwony przekreślony wiersz, `DELETED`
 
-## Wdrożenie (WAŻNE)
-Plik `PW_integrationg.xlsm` ma przebudowany wygląd arkuszy, ale **kod VBA w środku jest jeszcze stary** (odwołuje się do `Sheet_1…`).
-Przed użyciem uruchom na kopii pliku `Import-VBA.ps1` (Windows + Excel, włączony dostęp do modelu VBA) – podmienia moduły,
-kod arkuszy i formularzy na wersję z `src/`. Bez tego makra zgłoszą brak arkusza `Sheet_1`.
+## Plik główny
+`PW_integration_imported.xlsm` – skoroszyt z już wgranym kodem VBA (zgodnym z `src/`). Nie trzeba nic importować.
+`Import-VBA.ps1` jest potrzebny tylko, gdy kod w `src/` zmieni się po wydaniu pliku (uruchom przez
+`powershell -ExecutionPolicy Bypass -File .\Import-VBA.ps1` na kopii pliku).
 
 ## Pliki w repo
 - `src/` – kod VBA wyciągnięty ze skoroszytu (podgląd/diffy; formularze bez układu graficznego).
 - `tools/build_workbook.py` – skrypt, który z oryginału (`tools/original/`) buduje nowy układ arkuszy na poziomie XML
-  (`python3 tools/build_workbook.py tools/original/PW_integrationg_original.xlsm PW_integrationg.xlsm`).
-- `Import-VBA.ps1` – wgrywa `src/` do skoroszytu.
+  (`python3 tools/build_workbook.py tools/original/PW_integrationg_original.xlsm PW_integration_imported.xlsm`).
+- `Import-VBA.ps1` – wgrywa `src/` do skoroszytu (tylko po zmianach w kodzie).
 
 ## Zmiany w V1.4 (UI)
 - Czytelne nazwy arkuszy, arkusz `Instrukcja`, nowy wygląd (nagłówki, kolory, listy TAK/NIE, walidacja linków, legenda).

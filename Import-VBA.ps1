@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Wgrywa kod VBA z src\ do PW_integrationg.xlsm:
+  Wgrywa kod VBA z src\ do PW_integration_imported.xlsm:
   - moduły standardowe (modConfig, Module1-3) są podmieniane w całości,
   - kod arkuszy (Sheet1, Sheet4) i formularzy (frmAttributes, frmNavigator) jest podmieniany w środku
     (układ graficzny formularzy zostaje bez zmian).
@@ -9,7 +9,7 @@
   Plik > Opcje > Centrum zaufania > Ustawienia makr > "Ufaj dostępowi do modelu obiektowego projektu VBA".
   Uruchom na KOPII pliku. Po imporcie zapisz skoroszyt.
 #>
-param([string]$Workbook = (Join-Path $PSScriptRoot 'PW_integrationg.xlsm'))
+param([string]$Workbook = (Join-Path $PSScriptRoot 'PW_integration_imported.xlsm'))
 $ErrorActionPreference = 'Stop'
 $tmp = Join-Path $env:TEMP 'pw_vba_import'
 Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
