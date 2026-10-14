@@ -46,7 +46,7 @@ try {
         if ($cm.CountOfLines -gt 0) { $cm.DeleteLines(1, $cm.CountOfLines) }
         $cm.AddFromString(($code -join "`r`n"))
     }
-    $wb.SaveAs($Workbook, 52)   # 52 = xlOpenXMLWorkbookMacroEnabled (.xlsm)
+    $wb.Save()
     $wb.Close($false)
     Write-Host 'OK: kod VBA zaimportowany.' -ForegroundColor Green
 } finally {
