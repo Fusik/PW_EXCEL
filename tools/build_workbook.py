@@ -261,7 +261,7 @@ files['xl/worksheets/sheet7.xml'] = sheet_xml(w, [30, 70, 80], '7030A0', '<pane 
 
 v = Sheet()
 banner(v, 12, 'PW Tracker – Widok', 'Główny arkusz pracy: Baza_PW wyświetlona wg wybranego widoku. To kopia – dane pobiera makro, widoki definiujesz w arkuszu Widoki.')
-v.put(1, 3, 'Widok:', 'lab', ht=24); v.put(2, 3, 'Wszystko', 'in_l')
+v.put(1, 3, 'Widok:', 'lab', ht=24); v.put(2, 3, 'Wszystko', 'in_l'); v.put(7, 3, 'Folder docelowy:', 'lab'); v.put(8, 3, None, 'in_l')
 v.put(1, 4, 'Szukaj:', 'lab', ht=24); v.put(2, 4, None, 'search'); v.put(3, 4, '← wpisz frazę (min. 2 znaki) – lista filtruje się od razu po dowolnej kolumnie', 'note')
 v.put(1, 5, None, 'text', ht=38)
 v.put(1, 6, 'Legenda kolorów  →', 'legend', ht=20); v.put(2, 6, 'Niebieski wiersz = folder', 'sw_blue'); v.put(3, 6, 'Żółta komórka = zmiana', 'sw_yel'); v.put(4, 6, 'Czerwony wiersz = usunięty z PW', 'sw_red')
@@ -274,7 +274,8 @@ files['xl/worksheets/sheet8.xml'] = sheet_xml(v, [30, 36, 28, 40, 18, 18, 18, 18
 files['xl/worksheets/_rels/sheet8.xml.rels'] = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing3.xml"/></Relationships>'
 files['xl/drawings/drawing3.xml'] = (d2[:d2.index('<xdr:twoCellAnchor')] +
     button(2, 'btnUpdateV', 'DownloadFromProjectWise_PWPS', 'AKTUALIZUJ DANE', (0, 47625), (0, 1950000), (4, 38100), (4, 450000), '1F7A3D', 'absolute') +
-    button(3, 'btnNavV', 'ShowNavigator', 'NAWIGATOR FOLDERÓW', (1, 47625), (1, 2250000), (4, 38100), (4, 450000), '2F5597', 'absolute') + '</xdr:wsDr>').encode('utf-8')
+    button(3, 'btnNavV', 'ShowNavigator', 'NAWIGATOR FOLDERÓW', (1, 47625), (1, 2250000), (4, 38100), (4, 450000), '2F5597', 'absolute') +
+    button(4, 'btnGetFiles', 'PobierzPlikiPW', 'POBIERZ PLIKI Z WIDOKU', (2, 47625), (2, 1950000), (4, 38100), (4, 450000), '7F4F00', 'absolute') + '</xdr:wsDr>').encode('utf-8')
 
 # ------------------------------------------------------------------ Instrukcja (nowy arkusz)
 I = Sheet()
