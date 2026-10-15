@@ -8,6 +8,8 @@ Attribute VB_TemplateDerived = False
 Attribute VB_Customizable = True
 Private Sub Workbook_Open()
     On Error Resume Next
+    ' Znacznik wersji kodu - jesli nie widzisz "build ..." w Instrukcja!B3, import kodu sie nie powiodl
+    ThisWorkbook.Sheets(SH_START).Range("B3").Value = "Wersja skoroszytu: V1.6  ·  build " & BUILD_ID & "  ·  Wystarczy wkleić link w arkuszu Foldery – resztę robi makro. Własne ustawienia: Atrybuty (TAK/NIE) i Widoki."
     ' Uruchamia Nawigator w tle (Modeless = 0) od razu po starcie Excela
     frmNavigator.Show 0
     On Error GoTo 0

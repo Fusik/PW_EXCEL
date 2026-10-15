@@ -6,6 +6,9 @@ Option Explicit
 ' Zmiana nazwy zakładki w Excelu wymaga zmiany TUTAJ (i tylko tutaj).
 ' =======================================================================
 
+' --- Wersja kodu: hash commita z repozytorium, z ktorego zaimportowano kod (widac go w arkuszu Instrukcja, B3) ---
+Public Const BUILD_ID As String = "PLACEHOLDER"
+
 ' --- Nazwy arkuszy (zakładek) ---
 Public Const SH_START As String = "Instrukcja"      ' Instrukcja obsługi
 Public Const SH_FOLDERS As String = "Foldery"       ' Lista folderów ProjectWise do skanowania

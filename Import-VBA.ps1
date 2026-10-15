@@ -46,9 +46,20 @@ try {
         if ($cm.CountOfLines -gt 0) { $cm.DeleteLines(1, $cm.CountOfLines) }
         $cm.AddFromString(($code -join "`r`n"))
     }
-    $wb.Save()
+    $build = (Select-String -Path (Join-Path $PSScriptRoot 'src\modConfig.bas') -Pattern 'BUILD_ID As String = "([^"]+)"').Matches[0].Groups[1].Value
+    try {
+        $wb.Save()
+        $savedAs = $Workbook
+    } catch {
+        Write-Host ('Save() nie zadzialal: ' + $_.Exception.Message) -ForegroundColor Yellow
+        Write-Host ('  plik: ' + $wb.FullName + ' | tylko-do-odczytu: ' + $wb.ReadOnly + ' | rozmiar na dysku: ' + (Get-Item $Workbook).Length) -ForegroundColor Yellow
+        $alt = Join-Path (Split-Path $Workbook) ((Get-Item $Workbook).BaseName + '_build_' + $build + '.xlsm')
+        Write-Host ('Probuje zapisac kopie: ' + $alt) -ForegroundColor Yellow
+        $wb.SaveAs($alt, 52)   # 52 = xlOpenXMLWorkbookMacroEnabled (.xlsm)
+        $savedAs = $alt
+    }
     $wb.Close($false)
-    Write-Host 'OK: kod VBA zaimportowany.' -ForegroundColor Green
+    Write-Host ('OK: kod VBA zaimportowany. Build ' + $build + ' -> ' + $savedAs) -ForegroundColor Green
 } finally {
     try { if ($wb) { $wb.Close($false) } } catch {}
     $xl.Quit()
