@@ -30,6 +30,8 @@ Private Const WS_MINIMIZEBOX As Long = &H20000
 Private Const WS_MAXIMIZEBOX As Long = &H10000
 Private Const WS_EX_APPWINDOW As Long = &H40000
 Private Const SC_CLOSE As Long = &HF060
+Private Const SC_MOVE As Long = &HF010
+Private Const SC_SIZE As Long = &HF000
 Private Const MF_BYCOMMAND As Long = &H0
 
 ' =====================================================================
@@ -46,7 +48,7 @@ Private Sub UserForm_Activate()
     
     If hWnd <> 0 Then
         lStyle = GetWindowLongPtr(hWnd, GWL_STYLE)
-        lStyle = lStyle Or WS_THICKFRAME Or WS_MINIMIZEBOX Or WS_MAXIMIZEBOX
+        lStyle = lStyle And Not (WS_THICKFRAME Or WS_MINIMIZEBOX Or WS_MAXIMIZEBOX)   ' okno przypiete: bez zmiany rozmiaru/minimalizacji
         SetWindowLongPtr hWnd, GWL_STYLE, lStyle
         
         lExStyle = GetWindowLongPtr(hWnd, GWL_EXSTYLE)
@@ -56,6 +58,8 @@ Private Sub UserForm_Activate()
         hMenu = GetSystemMenu(hWnd, 0)
         If hMenu <> 0 Then
             RemoveMenu hMenu, SC_CLOSE, MF_BYCOMMAND
+            RemoveMenu hMenu, SC_MOVE, MF_BYCOMMAND                  ' bez przesuwania
+            RemoveMenu hMenu, SC_SIZE, MF_BYCOMMAND
         End If
         
         DrawMenuBar hWnd
@@ -81,7 +85,6 @@ Public Sub DockToView()
     x2 = pTop.PointsToScreenPixelsX(ws.Columns(2).Left)
     y1 = pTop.PointsToScreenPixelsY(ws.Rows(VIEW_HEADER_ROW).Top)
     y2 = pBot.PointsToScreenPixelsY(pBot.VisibleRange.Top + pBot.VisibleRange.Height)
-    x2 = x2 + 30                                        ' nawigator troche szerszy niz kolumna A
     If x2 - x1 < 150 Then x2 = x1 + 150
     If y2 - y1 < 200 Then y2 = y1 + 400                 ' zabezpieczenie: gdy obliczenie pozycji sie nie powiodlo, okno nie zostanie puste/splaszczone
     If y1 <= 0 Then y1 = 100

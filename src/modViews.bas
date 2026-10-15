@@ -120,7 +120,7 @@ Private Sub BuildTree(wsV As Worksheet, wsD As Worksheet, ByVal lastR As Long)
         .Value = "Drzewo folderow"
         .Interior.Color = CLR_HEADER: .Font.Color = CLR_WHITE: .Font.Bold = True
     End With
-    wsV.Columns(1).ColumnWidth = 38
+    wsV.Columns(1).ColumnWidth = 44
     wsV.Outline.SummaryRow = xlSummaryAbove
     Dim lvl As Long, fileLvl As Long
     fileLvl = 1
