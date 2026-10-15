@@ -17,6 +17,12 @@ New-Item $tmp -ItemType Directory | Out-Null
 $ansi = [System.Text.Encoding]::GetEncoding(1250)   # VBE oczekuje kodowania ANSI, nie UTF-8
 function Read-Src($name) { (Get-Content (Join-Path $PSScriptRoot "src\$name") -Raw -Encoding UTF8) -replace "`r?`n", "`r`n" }
 
+# VBA nie przyjmuje linii dluzszych niz 1023 znaki - taki modul psuje projekt i skoroszyt nie daje sie zapisac
+foreach ($f in Get-ChildItem (Join-Path $PSScriptRoot 'src') -File) {
+    $n = 0
+    foreach ($l in Get-Content $f.FullName -Encoding UTF8) { $n++; if ($l.Length -gt 1000) { throw ('Za dluga linia VBA (' + $l.Length + ' znakow): ' + $f.Name + ':' + $n) } }
+}
+
 $modules = 'modConfig', 'modViews', 'modBench', 'Module1', 'Module2', 'Module3'
 foreach ($m in $modules) { [IO.File]::WriteAllText((Join-Path $tmp "$m.bas"), (Read-Src "$m.bas"), $ansi) }
 
