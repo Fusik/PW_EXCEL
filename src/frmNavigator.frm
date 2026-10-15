@@ -81,6 +81,7 @@ Public Sub DockToView()
     x2 = pTop.PointsToScreenPixelsX(ws.Columns(2).Left)
     y1 = pTop.PointsToScreenPixelsY(ws.Rows(VIEW_HEADER_ROW).Top)
     y2 = pBot.PointsToScreenPixelsY(pBot.VisibleRange.Top + pBot.VisibleRange.Height)
+    x2 = x2 + 30                                        ' nawigator troche szerszy niz kolumna A
     If x2 - x1 < 150 Then x2 = x1 + 150
     If y2 - y1 < 200 Then y2 = y1 + 400                 ' zabezpieczenie: gdy obliczenie pozycji sie nie powiodlo, okno nie zostanie puste/splaszczone
     If y1 <= 0 Then y1 = 100
