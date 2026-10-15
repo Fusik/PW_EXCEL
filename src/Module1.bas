@@ -529,7 +529,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine "         if ($r.Count -eq 0) { throw 'brak wynikow' }"
     psFile.WriteLine "         if ($r[0] -is [System.Data.DataTable]) { throw 'zwrocono DataTable zamiast obiektow' }"
     psFile.WriteLine "         if ([string]::IsNullOrWhiteSpace([string]$r[0].FullPath)) { throw 'FullPath pusty mimo PopulatePath' }"
-    psFile.WriteLine "         if ([string]::IsNullOrWhiteSpace([string]$r[0].DocumentURN)) { throw 'brak DocumentURN' }"
+    psFile.WriteLine "         if ([string]::IsNullOrWhiteSpace([string]$r[0].DocumentURN)) { throw ('brak DocumentURN; wlasciwosci: ' + (($r[0].PSObject.Properties.Name) -join ',')) }"
     psFile.WriteLine "         $documents = $r"
     psFile.WriteLine "         Write-Host ('FAST PATH OK: ' + $r.Count + ' documents in ' + $fetchWatch.Elapsed.ToString('mm\:ss')) -ForegroundColor Green"
     psFile.WriteLine "     } catch { Write-Host ('FAST PATH FAILED, using slow mode: ' + $_.Exception.Message) -ForegroundColor Yellow }"

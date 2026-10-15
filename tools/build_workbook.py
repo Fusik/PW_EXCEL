@@ -146,8 +146,7 @@ def sheet_xml(sh, widths, tab, view='', cf='', dv='', extra_head='', gridlines=F
 sst = re.findall(r'<si><t[^>]*>(.*?)</t></si>', T('xl/sharedStrings.xml'), re.S)
 unesc = lambda s: s.replace('&amp;', '&')
 L = {i: unesc(v) for i, v in enumerate(sst)}
-links = [('pw:\\\\pa7PJWW2K01.egis.racine.local:ENQE01301_SZC_Sizewell_EPR\\Documents\\SZC_Sizewell_EPR\\01-ICOSH\\04-INTERNAL DOCUMENTS\\04.1-DOCUMENT\\', 'SZC Sizewell EPR – 01-ICOSH / 04.1-DOCUMENT'), (L[1], 'Deliverables dla JDO Site – 03-HR'), (L[0], 'Deliverables dla Edvance – 03-HR'), (L[8], 'Procedury i narzędzia (oficjalne)'),
-         (L[10], 'Deliverables dla JDO Site – 02-HK'), (L[11], 'Deliverables dla JDO Site – 04-HL')]
+links = [('pw:\\\\pa7PJWW2K01.egis.racine.local:ENQE01301_SZC_Sizewell_EPR\\Documents\\SZC_Sizewell_EPR\\01-ICOSH\\04-INTERNAL DOCUMENTS\\04.1-DOCUMENT\\', 'SZC Sizewell EPR – 01-ICOSH / 04.1-DOCUMENT')]
 sample_folder = L[12]
 
 f = Sheet()
