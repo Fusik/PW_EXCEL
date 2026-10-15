@@ -97,3 +97,48 @@ Public Sub PobierzPlikiPW()
     
     CreateObject("WScript.Shell").Run "powershell.exe -ExecutionPolicy Bypass -Sta -File """ & psPath & """", 1, False
 End Sub
+
+' =======================================================================
+' PRZENIES DANE: kopiuje Baza_PW, Atrybuty, Diagnostyka (i definicje Widoki, Foldery) ze starszego skoroszytu do tego
+' =======================================================================
+Public Sub PrzeniesDanePW()
+    Dim fn As Variant, src As Workbook, nm As Variant, wsS As Worksheet, wsT As Worksheet, done As String
+    fn = Application.GetOpenFilename("Excel (*.xlsm;*.xlsx),*.xlsm;*.xlsx", , "Wskaz STARY skoroszyt z danymi")
+    If VarType(fn) = vbBoolean Then Exit Sub
+    If StrComp(CStr(fn), ThisWorkbook.FullName, vbTextCompare) = 0 Then Notify "To jest ten sam plik": Exit Sub
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    On Error GoTo Fail
+    Set src = Workbooks.Open(CStr(fn), False, True)      ' tylko do odczytu, bez aktualizacji lacz
+    For Each nm In Array(SH_DATA, SH_ATTRS, SH_DIAG, SH_VIEWS, SH_FOLDERS)
+        Set wsS = Nothing: Set wsT = Nothing
+        On Error Resume Next
+        Set wsS = src.Sheets(CStr(nm)): Set wsT = ThisWorkbook.Sheets(CStr(nm))
+        On Error GoTo Fail
+        If Not wsS Is Nothing And Not wsT Is Nothing Then
+            wsT.Cells.Clear
+            wsT.Cells.Hyperlinks.Delete
+            wsS.UsedRange.Copy wsT.Range(wsS.UsedRange.Cells(1, 1).Address)
+            Dim c As Long
+            For c = 1 To wsS.UsedRange.Columns.Count
+                wsT.Columns(wsS.UsedRange.Columns(c).Column).ColumnWidth = wsS.Columns(wsS.UsedRange.Columns(c).Column).ColumnWidth
+            Next c
+            done = done & nm & ", "
+        End If
+    Next nm
+    Application.CutCopyMode = False
+    src.Close False
+    On Error Resume Next
+    BuildView
+    On Error GoTo 0
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    Notify "Przeniesiono arkusze: " & done
+    Exit Sub
+Fail:
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    On Error Resume Next
+    src.Close False
+    Notify "Blad przenoszenia danych: " & Err.Description
+End Sub
