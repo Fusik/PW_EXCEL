@@ -71,3 +71,10 @@ Nazwy arkuszy, układ i kolory są w jednym miejscu: `src/modConfig.bas`.
 `AKTUALIZUJ DANE` uruchamia PowerShella w tle (okno zminimalizowane na pasku zadań) i oddaje Excela użytkownikowi. Pasek stanu pokazuje czas pobierania,
 a gdy skrypt zapisze znacznik `PW_Output.csv.done`, Excel sam wykonuje analizę różnic i odświeża Widok. Zamknięcie okna PowerShell przerywa pobieranie
 (dane w arkuszu nie są zmieniane). Podczas pobierania drugie uruchomienie jest blokowane.
+
+## Szybkie pobieranie (V1.8)
+Test na Twoim PW pokazał, że `Get-PWDocumentsBySearchExtended -ColumnsToReturn <atrybuty> -ReturnDataTable -GetVersionsToo -PopulatePath -FolderPath` zwraca
+standardowe kolumny i atrybuty projektu w ułamku sekundy (zamiast ~3,5 min w trybie obiektowym). `FAST_FETCH` w `modConfig` (domyślnie `True`) włącza ten tryb;
+przy dowolnym błędzie (brak kolumny, pusty `ProjectPath`, link nie do zbudowania) skrypt sam wraca do wolnego trybu i pisze powód żółtym tekstem
+(`FAST PATH FAILED, using slow mode: …`). Link do dokumentu budowany jest z szablonu `DocumentURN` jednego dokumentu (GUID podmieniany w wierszach).
+Nazwę aktualizującego (`Updater`) i stan workflow mapuje przez `Get-PWUsers` / `Get-PWStates`, a gdy cmdlet nie działa, wpisuje `ID <numer>`.

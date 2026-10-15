@@ -44,6 +44,7 @@ Public Const VIEW_SEARCH As String = "B4"           ' pole Szukaj w arkuszu Wido
 Public Const DATA_HEADER_ROW As Long = 11           ' Wiersz nagłówków; dane od następnego wiersza
 
 ' --- Pobieranie ---
+Public Const FAST_FETCH As Boolean = True           ' True = szybkie pobieranie (DataTable, sekundy); przy bledzie samo przechodzi na wolny tryb
 Public Const GET_ALL_VERSIONS As Boolean = True     ' True = kazda rewizja pliku (A, B, C...) w osobnym wierszu; False = tylko biezaca
 
 ' --- Kolory (wartości RGB policzone: R + G*256 + B*65536) ---

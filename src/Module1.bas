@@ -112,7 +112,7 @@ Private Sub RunDownload()                           ' Właściwa logika orkiestr
     
     Dim psScriptPath As String                      ' Deklaracja zmiennej dla ścieżki do pliku skryptu PowerShell
     psScriptPath = basePath & "\PW_GetFiles.ps1"    ' Zbudowanie pełnej ścieżki dla tworzonego pliku PS1
-    GeneratePowerShellScript psScriptPath, psArrayString ' Wywołanie procedury generującej fizyczny kod skryptu PS1 na dysku
+    GeneratePowerShellScript psScriptPath, psArrayString, GetCustomAttributesPS() ' Wywołanie procedury generującej fizyczny kod skryptu PS1 na dysku
     
     Dim csvOutputPath As String                     ' Deklaracja zmiennej na ścieżkę pliku wyjściowego CSV
     csvOutputPath = basePath & "\PW_Output.csv"     ' Zbudowanie pełnej ścieżki pliku CSV
@@ -301,6 +301,23 @@ End Function                                        ' Koniec funkcji
 ' =======================================================================
 ' 2. LOGOWANIE W EXCELU (Przygotowanie Arkusza "Log")
 ' =======================================================================
+' Atrybuty projektu (do ColumnsToReturn): typ ATRYBUT w arkuszu Atrybuty albo pusty typ i nazwa spoza listy wlasciwosci systemowych
+Private Function GetCustomAttributesPS() As String
+    Dim ws3 As Worksheet, lastRow As Long, i As Long, nm As String, typ As String, res As String
+    Set ws3 = ThisWorkbook.Sheets(SH_ATTRS)
+    lastRow = ws3.Cells(ws3.rows.count, "A").End(xlUp).Row
+    For i = ATTRS_FIRST_ROW To lastRow
+        nm = Trim(CStr(ws3.Cells(i, 1).Value))
+        typ = UCase(Trim(CStr(ws3.Cells(i, ATTRS_TYPE_COL).Value)))
+        If nm <> "" And UCase(Trim(CStr(ws3.Cells(i, ATTRS_ENABLE_COL).Value))) <> "NIE" Then
+            If typ = "ATRYBUT" Or (typ = "" And InStr(1, "," & ATTRS_SYSTEM_DEFAULTS & ",", "," & nm & ",", vbTextCompare) = 0) Then
+                res = res & "'" & Replace(nm, "'", "''") & "',"
+            End If
+        End If
+    Next i
+    If res = "" Then GetCustomAttributesPS = "@()" Else GetCustomAttributesPS = "@(" & Left(res, Len(res) - 1) & ")"
+End Function
+
 Private Sub InitLogSheet()                          ' Deklaracja procedury przygotowującej arkusz logów
     On Error Resume Next                            ' Ignorowanie błędów przy próbie przypisania arkusza
     Set wsLog = ThisWorkbook.Sheets(SH_LOG)          ' Przypisanie arkusza "Log" do zmiennej wsLog
@@ -442,7 +459,7 @@ End Function                                        ' Koniec funkcji budującej 
 ' =======================================================================
 ' 4. POWERSHELL + GENEROWANIE LOGU STRUKTURY
 ' =======================================================================
-Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) ' Generator fizycznego kodu skryptu PS1
+Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, customArrayString As String) ' Generator fizycznego kodu skryptu PS1
     Dim fso As Object, psFile As Object             ' Zmienne systemowe na obiekt pliku i generator tekstu
     Set fso = CreateObject("Scripting.FileSystemObject") ' Uruchomienie narzędzia systemowego
     Set psFile = fso.CreateTextFile(psPath, True, True) ' Utworzenie/Nadpisanie pliku PS1, w trybie zapisu (Unicode/UTF8)
@@ -462,6 +479,10 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     psFile.WriteLine "$okScopes = New-Object System.Collections.ArrayList" ' Lista folderów, które faktycznie udało się przeskanować (używana później do bezpiecznego oznaczania usunięć)
     psFile.WriteLine "$selectedAttrs = " & psArrayString ' Zapis kodu PS: Wstrzyknięcie z Excela tablicy z atrybutami (np. @('Attr1','Attr2'))
     psFile.WriteLine "function Get-Attr($d, $n) { $p = $d.psobject.Properties[$n]; if ($p) { return $p.Value }; foreach ($q in $d.psobject.Properties) { $v = $q.Value; if ($null -eq $v -or $v -is [string] -or $v -is [ValueType] -or $v -is [array]) { continue }; if ($v -is [System.Collections.IDictionary]) { if ($v.Contains($n)) { return $v[$n] } } else { $pp = $v.psobject.Properties[$n]; if ($pp) { return $pp.Value } } }; return $null }" ' Pomocnik: atrybut moze byc wlasciwoscia dokumentu albo siedziec w zagniezdzonym obiekcie/slowniku
+    psFile.WriteLine "$customAttrs = " & customArrayString ' Atrybuty projektu przekazywane do ColumnsToReturn (szybki tryb)
+    psFile.WriteLine "$fastFetch = " & IIf(FAST_FETCH, "$true", "$false") ' Szybkie pobieranie (DataTable) z automatycznym wyjsciem awaryjnym na stary tryb
+    psFile.WriteLine "$umap = $null; $smap = $null"
+    psFile.WriteLine "function Get-DtVal($row, $attr) { $c = $row.Table.Columns; $v = $null; if ($c.Contains($attr)) { $v = $row[$attr] } elseif ($c.Contains('Document' + $attr)) { $v = $row['Document' + $attr] } elseif ($attr -eq 'WorkflowState') { $sid = [string]$row['DocumentStateId']; if ($smap.ContainsKey($sid)) { $v = $smap[$sid] } else { $v = $sid } } elseif ($attr -eq 'CreateDate' -and $c.Contains('DocumentCreatedDate')) { $v = $row['DocumentCreatedDate'] } elseif ($attr -eq 'DocumentCreatorName' -and $c.Contains('DocumentCreatorId')) { $cid = [string]$row['DocumentCreatorId']; if ($umap.ContainsKey($cid)) { $v = $umap[$cid] } else { $v = 'ID ' + $cid } }; if ($v -is [DBNull]) { $v = $null }; if ($v -is [DateTime]) { $v = $v.ToString('yyyy-MM-dd') }; if ($v -is [string]) { $v = $v.Replace('|', '-').Replace([string][char]10, ' ').Replace([string][char]13, '').Trim() }; return $v }"
     psFile.WriteLine ""                             ' Zapis kodu PS: Pusty wiersz
     psFile.WriteLine "$results = @(foreach ($line in $inputData) {" ' Zapis kodu PS: Inicjalizacja tablicy na wyniki i początek pętli
     psFile.WriteLine " $parts = $line.Split('|')"   ' Zapis kodu PS: Rozbicie wiersza za pomocą separatora "|"
@@ -498,6 +519,57 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     psFile.WriteLine " $pwFolder = $pwFoldersList[0]" ' Zapis kodu PS: Zapisuje id dopasowanego folderu
     psFile.WriteLine " Write-Progress -Id 1 -Activity ""Fetching ALL documents (Recursive) from PW..."" -Status ""Folder $folderIndex of $totalFolders""" ' Zapis kodu PS: Wyświetla pasek pobierania
     
+    psFile.WriteLine " $fastDone = $false"
+    psFile.WriteLine " if ($fastFetch) {"
+    psFile.WriteLine "     try {"
+    psFile.WriteLine "         $fw = [System.Diagnostics.Stopwatch]::StartNew()"
+    psFile.WriteLine "         $gv = @{}; if ($allVersions) { $gv['GetVersionsToo'] = $true }"
+    psFile.WriteLine "         $cr = @{}; if ($customAttrs.Count -gt 0) { $cr['ColumnsToReturn'] = $customAttrs }"
+    psFile.WriteLine "         $r = @(Get-PWDocumentsBySearchExtended -FolderPath $folderPath -PopulatePath -ReturnDataTable @gv @cr -WarningAction SilentlyContinue -ErrorAction Stop)"
+    psFile.WriteLine "         if (-not ($r.Count -eq 1 -and $r[0] -is [System.Data.DataTable])) { throw 'brak DataTable' }"
+    psFile.WriteLine "         $dt = $r[0]"
+    psFile.WriteLine "         foreach ($need in 'DocumentGUID', 'DocumentName', 'DocumentFileName', 'ProjectPath', 'DocumentVersionSequence', 'DocumentUpdateDate') { if (-not $dt.Columns.Contains($need)) { throw ('brak kolumny ' + $need) } }"
+    psFile.WriteLine "         if ($dt.Rows.Count -eq 0) { throw 'pusta tabela' }"
+    psFile.WriteLine "         if ([string]::IsNullOrWhiteSpace([string]$dt.Rows[0]['ProjectPath'])) { throw 'ProjectPath pusty mimo PopulatePath' }"
+    psFile.WriteLine "         $s1 = Get-PWDocumentsBySearch -FolderID $pwFolder.ProjectID -FileName ([string]$dt.Rows[0]['DocumentFileName']) -WarningAction SilentlyContinue -ErrorAction Stop | Select-Object -First 1"
+    psFile.WriteLine "         $g1 = [string]$s1.DocumentGUIDString; if (-not $g1) { $g1 = [string]$s1.DocumentGUID }"
+    psFile.WriteLine "         $u1 = [string]$s1.DocumentURN"
+    psFile.WriteLine "         if (-not $g1 -or -not $u1 -or $u1.IndexOf($g1, [StringComparison]::OrdinalIgnoreCase) -lt 0) { throw 'DocumentURN nie zawiera GUID - nie da sie zbudowac linkow' }"
+    psFile.WriteLine "         $tpl = [regex]::Replace($u1, [regex]::Escape($g1), '{GUID}', 'IgnoreCase')"
+    psFile.WriteLine "         $umap = @{}; try { foreach ($u in @(Get-PWUsers -ErrorAction Stop)) { $umap[[string]$u.UserID] = [string]$u.UserName } } catch { }"
+    psFile.WriteLine "         $smap = @{}; try { foreach ($st in @(Get-PWStates -ErrorAction Stop)) { $nm = if ($st.Name) { $st.Name } else { $st.StateName }; $smap[[string]$st.StateID] = [string]$nm } } catch { }"
+    psFile.WriteLine "         $fClean = $pwFolder.FullPath.Trim('\')"
+    psFile.WriteLine "         if ($fClean.StartsWith('Documents\', [System.StringComparison]::OrdinalIgnoreCase)) { $fClean = $fClean.Substring(10) }"
+    psFile.WriteLine "         $fClean = $fClean.Replace('\', '/')"
+    psFile.WriteLine "         $fUrn = if ($pwFolder.ProjectURN) { $pwFolder.ProjectURN } elseif ($pwFolder.URN) { $pwFolder.URN } else { 'pw://' + $dsName + '/Documents/' + $fClean }"
+    psFile.WriteLine "         $maxS = @{}"
+    psFile.WriteLine "         foreach ($row in $dt.Rows) { $k = [string]$row['DocumentGUID']; $sq = [int]$row['DocumentVersionSequence']; if (-not $maxS.ContainsKey($k) -or $sq -gt $maxS[$k]) { $maxS[$k] = $sq } }"
+    psFile.WriteLine "         $fastObjs = foreach ($row in $dt.Rows) {"
+    psFile.WriteLine "             $o = [ordered]@{}"
+    psFile.WriteLine "             $o['File Name'] = [string]$row['DocumentName']"
+    psFile.WriteLine "             $pp = ([string]$row['ProjectPath']).Trim('\')"
+    psFile.WriteLine "             $i2 = $pp.IndexOf('\Documents\', [System.StringComparison]::OrdinalIgnoreCase)"
+    psFile.WriteLine "             if ($i2 -ge 0) { $pp = $pp.Substring($i2 + 11) } elseif ($pp.StartsWith('Documents\', [System.StringComparison]::OrdinalIgnoreCase)) { $pp = $pp.Substring(10) }"
+    psFile.WriteLine "             $o['PW Source Path'] = $pp.Trim('\')"
+    psFile.WriteLine "             $o['Folder Link'] = $fUrn"
+    psFile.WriteLine "             $gu = [string]$row['DocumentGUID']"
+    psFile.WriteLine "             $lk = $tpl.Replace('{GUID}', $gu)"
+    psFile.WriteLine "             if ([int]$row['DocumentVersionSequence'] -lt $maxS[$gu]) { $lk = $lk + '?version=' + $row['DocumentVersionSequence'] }"
+    psFile.WriteLine "             $o['PW Link'] = $lk"
+    psFile.WriteLine "             $uid = [string]$row['DocumentUpdaterId']"
+    psFile.WriteLine "             $o['Updater'] = if ($umap.ContainsKey($uid)) { $umap[$uid] } elseif ($uid) { 'ID ' + $uid } else { 'Unknown (PW)' }"
+    psFile.WriteLine "             $ud = [string]$row['DocumentUpdateDate']"
+    psFile.WriteLine "             $o['Updated'] = $ud.Substring(0, [math]::Min(10, $ud.Length))"
+    psFile.WriteLine "             foreach ($attr in $selectedAttrs) { if ($attr -match '^(Name|Description|FileName|Updater|Updated)$') { continue }; $o[$attr] = (Get-DtVal $row $attr) }"
+    psFile.WriteLine "             [PSCustomObject]$o"
+    psFile.WriteLine "         }"
+    psFile.WriteLine "         $fastDone = $true"
+    psFile.WriteLine "         Write-Host ('FAST PATH OK: ' + $dt.Rows.Count + ' documents in ' + $fw.Elapsed.ToString('mm\:ss')) -ForegroundColor Green"
+    psFile.WriteLine "         Write-Host ('Found total documents: ' + $dt.Rows.Count) -ForegroundColor Green"
+    psFile.WriteLine "         $fastObjs"
+    psFile.WriteLine "     } catch { Write-Host ('FAST PATH FAILED, using slow mode: ' + $_.Exception.Message) -ForegroundColor Yellow }"
+    psFile.WriteLine " }"
+    psFile.WriteLine " if (-not $fastDone) {"
     psFile.WriteLine " $extra = @{}; if ($allVersions -and (Get-Command Get-PWDocumentsBySearch).Parameters.ContainsKey('GetVersionsToo')) { $extra['GetVersionsToo'] = $true }" ' Z GetVersionsToo wyszukiwanie zwraca tez starsze rewizje (A, B, C...)
     psFile.WriteLine " $fetchWatch = [System.Diagnostics.Stopwatch]::StartNew()"
     psFile.WriteLine " $documents = @(Get-PWDocumentsBySearch -FolderID $pwFolder.ProjectID -GetAttributes @extra -WarningAction SilentlyContinue -ErrorAction SilentlyContinue)"
@@ -550,6 +622,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     psFile.WriteLine " }"                           ' Zapis kodu PS: Koniec pętli po właściwościach pojedynczego pliku
     psFile.WriteLine " [PSCustomObject]$obj"        ' Zapis kodu PS: Rzucenie wygenerowanego obiektu pliku na stertę (doda się automatycznie do tablicy wyników pętli na górze)
     psFile.WriteLine " }"                           ' Zapis kodu PS: Zakończenie pętli przechodzącej po dokumentach
+    psFile.WriteLine " }" ' koniec trybu wolnego (obiekty)
     psFile.WriteLine " } else { Write-Host 'FOLDER NOT FOUND OR INVALID!' -ForegroundColor Red }" ' Zapis kodu PS: Błąd w terminalu w przypadku problemów z folderem
     psFile.WriteLine " } catch { Write-Host ('ERROR: ' + $_.Exception.Message) -ForegroundColor Red }" ' Zapis kodu PS: Czerwony błąd systemowy bazy dla pojedynczego wariantu
 
