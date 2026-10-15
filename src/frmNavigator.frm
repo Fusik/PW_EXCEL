@@ -212,25 +212,26 @@ Private Sub TreeView1_NodeClick(ByVal Node As MSComctlLib.Node)
     Dim ws As Worksheet
     Set ws = ThisWorkbook.Sheets(SH_DATA)
     
-    ' Skok do wybranego wiersza
-    If Node.Tag <> "" And IsNumeric(Node.Tag) Then
+    Dim wsV As Worksheet, vRow As Long, sr As Long
+    Set wsV = ThisWorkbook.Sheets(SH_VIEW)
+    On Error Resume Next
+    If Right(Node.Key, 1) = "\" Then                                ' folder: filtruj widok do jego zawartosci
+        wsV.Activate
+        vRow = ShowFolderByKey(Node.Key)
+    ElseIf Node.Tag <> "" And IsNumeric(Node.Tag) Then              ' plik: odslon wiersz w widoku
         targetRow = CLng(Node.Tag)
-        Dim wsV As Worksheet, vRow As Long
-        Set wsV = ThisWorkbook.Sheets(SH_VIEW)
         vRow = targetRow - DATA_HEADER_ROW + VIEW_HEADER_ROW        ' wiersz Baza_PW -> wiersz w Widok (kopia 1:1)
-        If StrComp(CStr(wsV.Cells(vRow, 2).Value), CStr(ws.Cells(targetRow, 1).Value), vbTextCompare) = 0 Then
-            wsV.Rows(vRow).Hidden = False                           ' plik byl zwiniety pod folderem
-            wsV.Activate                                            ' glowny arkusz pracy - Widok
-            wsV.Rows(vRow).Select
-            ActiveWindow.ScrollRow = vRow - 10
-            If ActiveWindow.ScrollRow < VIEW_HEADER_ROW + 1 Then ActiveWindow.ScrollRow = VIEW_HEADER_ROW + 1
-        Else
-            ws.Activate                                             ' widok nie pokazuje tego wiersza (kolumna A inna lub ukryty filtrem) - skok w Baza_PW
-            ws.Rows(targetRow).Select
-            ActiveWindow.ScrollRow = targetRow - 10
-            If ActiveWindow.ScrollRow < 1 Then ActiveWindow.ScrollRow = 1
+        If vRow > VIEW_HEADER_ROW Then
+            wsV.Activate
+            wsV.Rows(vRow).Hidden = False
         End If
     End If
+    If vRow > VIEW_HEADER_ROW Then
+        wsV.Cells(vRow, 2).Select
+        sr = vRow - 10: If sr < VIEW_HEADER_ROW + 1 Then sr = VIEW_HEADER_ROW + 1
+        ActiveWindow.ScrollRow = sr
+    End If
+    On Error GoTo 0
     
     ' Zwijanie/Rozwijanie folderów po kliknięciu w samą nazwę
     If Node.Children > 0 Then

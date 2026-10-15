@@ -11,6 +11,7 @@ Private Sub Workbook_Open()
     ' Znacznik wersji kodu - jesli nie widzisz "build ..." w Instrukcja!B3, import kodu sie nie powiodl
     ThisWorkbook.Sheets(SH_START).Range("B3").Value = "Wersja skoroszytu: V1.6  ·  build " & BUILD_ID & "  ·  Wystarczy wkleić link w arkuszu Foldery – resztę robi makro. Własne ustawienia: Atrybuty (TAK/NIE) i Widoki."
     ' Uruchamia Nawigator w tle (Modeless = 0) od razu po starcie Excela
+    EnsureViewButton
     frmNavigator.Show 0
     On Error GoTo 0
 End Sub
@@ -43,4 +44,23 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
 Fail:
     Application.EnableEvents = True
     Notify "Blad: " & Err.Description
+End Sub
+
+' Klik w kolumne A widoku: folder = filtruje tabele do jego zawartosci, naglowek "Drzewo folderow" = pokaz wszystko
+Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Range)
+    Static busy As Boolean
+    If busy Then Exit Sub
+    If Sh.Name <> SH_VIEW Then Exit Sub
+    If Target.Cells.Count <> 1 Or Target.Column <> 1 Then Exit Sub
+    On Error GoTo Done
+    busy = True
+    Application.EnableEvents = False
+    If Target.Row = VIEW_HEADER_ROW Then
+        ShowAllFolders
+    ElseIf Target.Row > VIEW_HEADER_ROW Then
+        If Target.Interior.Color = CLR_FOLDER Then ShowFolderRows Target.Row
+    End If
+Done:
+    Application.EnableEvents = True
+    busy = False
 End Sub

@@ -152,6 +152,62 @@ Public Sub CollapseFiles(wsV As Worksheet)
     Next r
 End Sub
 
+' Sciezka folderu dla wiersza widoku (z kolumny 1 Baza_PW, z koncowym \)
+Private Function FolderKey(ByVal vRow As Long) As String
+    Dim t As String
+    t = Replace(CStr(ThisWorkbook.Sheets(SH_DATA).Cells(vRow - VIEW_HEADER_ROW + DATA_HEADER_ROW, 1).Value), "/", "\")
+    If Right(t, 1) <> "\" Then t = t & "\"
+    FolderKey = t
+End Function
+
+' Klik w folder: pokazuje tylko ten folder, jego podfoldery i ich pliki
+Public Sub ShowFolderRows(ByVal vRow As Long, Optional ByVal baseKey As String = "")
+    Dim wsV As Worksheet, r As Long, lastR As Long, base As String, vis As Boolean, runStart As Long
+    Set wsV = ThisWorkbook.Sheets(SH_VIEW)
+    lastR = wsV.UsedRange.Row + wsV.UsedRange.Rows.Count - 1
+    base = IIf(baseKey = "", FolderKey(vRow), baseKey)
+    Application.ScreenUpdating = False
+    wsV.Rows(VIEW_HEADER_ROW + 1 & ":" & lastR).Hidden = True
+    For r = vRow To lastR + 1
+        If r <= lastR Then
+            If wsV.Cells(r, 1).Interior.Color = CLR_FOLDER Then vis = (StrComp(Left(FolderKey(r), Len(base)), base, vbTextCompare) = 0)
+        Else
+            vis = False
+        End If
+        If vis And runStart = 0 Then runStart = r
+        If Not vis And runStart > 0 Then wsV.Rows(runStart & ":" & (r - 1)).Hidden = False: runStart = 0
+    Next r
+    Application.ScreenUpdating = True
+End Sub
+
+' Folder z nawigatora: znajdz pierwszy wiersz folderu o tej sciezce (lub podfolderu) i pokaz jego zawartosc; zwraca wiersz albo 0
+Public Function ShowFolderByKey(ByVal key As String) As Long
+    Dim wsV As Worksheet, r As Long, lastR As Long
+    Set wsV = ThisWorkbook.Sheets(SH_VIEW)
+    lastR = wsV.UsedRange.Row + wsV.UsedRange.Rows.Count - 1
+    For r = VIEW_HEADER_ROW + 1 To lastR
+        If wsV.Cells(r, 1).Interior.Color = CLR_FOLDER Then
+            If StrComp(Left(FolderKey(r), Len(key)), key, vbTextCompare) = 0 Then
+                ShowFolderRows r, key
+                ShowFolderByKey = r
+                Exit Function
+            End If
+        End If
+    Next r
+End Function
+
+' Klik w naglowek "Drzewo folderow": pokaz wszystkie foldery, pliki zwiniete
+Public Sub ShowAllFolders()
+    Dim wsV As Worksheet, lastR As Long
+    Set wsV = ThisWorkbook.Sheets(SH_VIEW)
+    lastR = wsV.UsedRange.Row + wsV.UsedRange.Rows.Count - 1
+    If lastR <= VIEW_HEADER_ROW Then Exit Sub
+    Application.ScreenUpdating = False
+    wsV.Rows(VIEW_HEADER_ROW + 1 & ":" & lastR).Hidden = False
+    CollapseFiles wsV
+    Application.ScreenUpdating = True
+End Sub
+
 ' Szukaj w Baza_PW (pole tekstowe na tym arkuszu)
 Public Sub ApplySearch(ByVal txt As String)
     FilterRows ThisWorkbook.Sheets(SH_DATA), DATA_HEADER_ROW, txt

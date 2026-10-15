@@ -7,29 +7,20 @@ Option Explicit
 ' wkleja folder docelowy i konczy kreator. Dziala w osobnym oknie PowerShell - nie dotykaj klawiatury w tym czasie.
 ' =======================================================================
 Public Sub PobierzPlikiPW()
-    Dim wsV As Worksheet, lastC As Long, c As Long, linkCol As Long
+    frmPobierz.Show vbModeless                      ' formularz: lista linkow + folder docelowy
+End Sub
+
+' Linki PW z zaznaczenia w Widoku: kilka wierszy = te wiersze + pliki zaznaczonych folderow; jedna komorka = wszystko (bez wierszy ukrytych wyszukiwaniem)
+Public Function LinksFromSelection() As String
+    Dim wsV As Worksheet, lastC As Long, c As Long, linkCol As Long, r As Long, lnk As String
     Set wsV = ThisWorkbook.Sheets(SH_VIEW)
     lastC = wsV.Cells(VIEW_HEADER_ROW, wsV.Columns.Count).End(xlToLeft).Column
     For c = 1 To lastC
         If StrComp(Trim(CStr(wsV.Cells(VIEW_HEADER_ROW, c).Value)), "PW Link", vbTextCompare) = 0 Then linkCol = c: Exit For
     Next c
-    If linkCol = 0 Then Notify "Widok nie ma kolumny 'PW Link' - dodaj ja do widoku (arkusz Widoki).": Exit Sub
-    If ThisWorkbook.Path = "" Then Notify "Zapisz najpierw plik na dysku": Exit Sub
-    
-    Dim target As String
-    target = Trim(CStr(wsV.Range("H3").Value))
-    If target = "" Then
-        target = InputBox("Folder docelowy na pobrane pliki (np. D:\PW_pliki):", "Pobieranie plikow z PW")
-        If Trim(target) = "" Then Exit Sub
-        wsV.Range("H3").Value = target
-    End If
-    
-    Dim fso As Object, lastR As Long, r As Long, lnk As String, n As Long, lst As Object
-    Set fso = CreateObject("Scripting.FileSystemObject")
-    Set lst = CreateObject("System.Collections.ArrayList")
+    If linkCol = 0 Then Notify "Widok nie ma kolumny 'PW Link' - dodaj ja do widoku (arkusz Widoki).": Exit Function
+    Dim multi As Boolean, folderSel As Boolean, inSel As Boolean, skipHidden As Boolean, lastR As Long
     lastR = wsV.UsedRange.Row + wsV.UsedRange.Rows.Count - 1
-    ' Zaznaczenie kilku wierszy = tylko te wiersze oraz pliki zaznaczonych folderow; jedna komorka = wszystko (bez wierszy ukrytych wyszukiwaniem)
-    Dim multi As Boolean, folderSel As Boolean, inSel As Boolean, skipHidden As Boolean
     multi = (ActiveSheet.Name = SH_VIEW And Selection.Rows.Count > 1)
     skipHidden = (Len(Trim(CStr(wsV.Range(VIEW_SEARCH).Value))) >= 2)
     For r = VIEW_HEADER_ROW + 1 To lastR
@@ -40,16 +31,32 @@ Public Sub PobierzPlikiPW()
             If multi Then inSel = folderSel Or Not Intersect(wsV.Rows(r), Selection) Is Nothing
             If inSel And Not (skipHidden And wsV.Rows(r).Hidden) Then
                 If wsV.Cells(r, linkCol).Hyperlinks.Count > 0 Then lnk = wsV.Cells(r, linkCol).Hyperlinks(1).Address Else lnk = Trim(CStr(wsV.Cells(r, linkCol).Value))
-                If UCase(Left(lnk, 3)) = "PW:" And InStr(lnk, "/Documents/D{") > 0 Then lst.Add lnk
+                If UCase(Left(lnk, 3)) = "PW:" And InStr(lnk, "/Documents/D{") > 0 Then LinksFromSelection = LinksFromSelection & lnk & vbLf
             End If
         End If
     Next r
-    If lst.Count = 0 Then Notify "Brak plikow z PW Link do pobrania (zaznacz wiersze albo kliknij jedna komorke).": Exit Sub
+End Function
+
+' Start automatu pobierania: linksText = linki PW (po jednym w wierszu), target = folder docelowy
+Public Sub StartPobieranie(ByVal linksText As String, ByVal target As String)
+    Dim lst As Object, ln As Variant, t As String
+    Set lst = CreateObject("System.Collections.ArrayList")
+    For Each ln In Split(Replace(Replace(linksText, vbCrLf, vbLf), vbCr, vbLf), vbLf)
+        t = Trim(CStr(ln))
+        If UCase(Left(t, 3)) = "PW:" Then lst.Add t
+    Next ln
+    target = Trim(target)
+    If lst.Count = 0 Then Notify "Brak linkow PW (pw://...) na liscie.": Exit Sub
+    If target = "" Then Notify "Podaj folder docelowy.": Exit Sub
+    If ThisWorkbook.Path = "" Then Notify "Zapisz najpierw plik na dysku": Exit Sub
+    ThisWorkbook.Sheets(SH_VIEW).Range("H3").Value = target
     
     If MsgBox("Pobrac " & lst.Count & " plik(ow) do:" & vbCrLf & target & vbCrLf & vbCrLf & _
               "Skrypt steruje klawiatura i oknem ProjectWise - w trakcie nie dotykaj klawiatury ani myszy. Przerwanie: zamknij okno PowerShell.", _
               vbOKCancel + vbQuestion, "Pobieranie plikow z PW") <> vbOK Then Exit Sub
     
+    Dim fso As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
     If Not fso.FolderExists(target) Then CreateObject("WScript.Shell").Run "cmd /c mkdir """ & target & """", 0, True
     
     Dim listPath As String, psPath As String, f As Object, i As Long
@@ -151,4 +158,23 @@ Fail:
     On Error Resume Next
     src.Close False
     Notify "Blad przenoszenia danych: " & Err.Description
+End Sub
+
+' Przycisk "POBIERZ PLIKI" w Widoku: tworzy go, jesli skoroszyt go nie ma (stary plik z danymi), i podpina formularz
+Public Sub EnsureViewButton()
+    Dim ws As Worksheet, shp As Shape
+    Set ws = ThisWorkbook.Sheets(SH_VIEW)
+    On Error Resume Next
+    Set shp = ws.Shapes("btnGetFiles")
+    On Error GoTo 0
+    If shp Is Nothing Then
+        Set shp = ws.Shapes.AddShape(msoShapeRoundedRectangle, ws.Range("C5").Left + 3, ws.Range("C5").Top + 3, 190, 28)
+        shp.Name = "btnGetFiles"
+        shp.Fill.ForeColor.RGB = RGB(127, 79, 0)
+        shp.Line.Visible = msoFalse
+        shp.TextFrame2.TextRange.Text = "POBIERZ PLIKI Z PW"
+        shp.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = RGB(255, 255, 255)
+        shp.TextFrame2.TextRange.Font.Bold = msoTrue
+    End If
+    shp.OnAction = "PobierzPlikiPW"
 End Sub
