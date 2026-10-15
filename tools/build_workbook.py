@@ -240,7 +240,7 @@ new_d1 = (hdr_d + button(2, 'btnUpdate', 'DownloadFromProjectWise_PWPS', 'AKTUAL
 files['xl/drawings/drawing1.xml'] = new_d1.encode('utf-8')
 # drawing2 (Atrybuty): jeden przycisk w C3
 d2 = T('xl/drawings/drawing2.xml')
-new_d2 = d2[:d2.index('<xdr:twoCellAnchor')] + button(2, 'btnProbe', 'ZbadajAtrybutyPW', 'WYKRYJ ATRYBUTY ▶', (3, 95250), (3, 2300000), (2, 30000), (2, 400000), '2F5597') + button(3, 'btnBench', 'TestSzybkosciPW', 'TEST SZYBKOŚCI PW', (4, 95250), (4, 2300000), (2, 30000), (2, 400000), '7F7F7F') + '</xdr:wsDr>'
+new_d2 = d2[:d2.index('<xdr:twoCellAnchor')] + button(2, 'btnProbe', 'ZbadajAtrybutyPW', 'WYKRYJ ATRYBUTY ▶', (3, 95250), (3, 2300000), (2, 30000), (2, 400000), '2F5597') + button(3, 'btnBench', 'TestSzybkosciPW', 'TEST SZYBKOŚCI PW', (4, 95250), (4, 2300000), (2, 30000), (2, 400000), '7F7F7F') + button(4, 'btnCopyOut', 'TestPobieraniaPW', 'TEST POBIERANIA PLIKU', (5, 95250), (5, 2300000), (2, 30000), (2, 400000), '7F7F7F') + '</xdr:wsDr>'
 files['xl/drawings/drawing2.xml'] = new_d2.encode('utf-8')
 
 # ------------------------------------------------------------------ Widoki (definicje) + Widok (wynik)
