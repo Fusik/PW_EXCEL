@@ -13,6 +13,9 @@ Public Sub BuildView()
     Dim wsV As Worksheet, wsD As Worksheet, wsDef As Worksheet
     Dim viewName As String, spec As String, r As Long, defRow As Long, lastDef As Long
     Dim lastR As Long, lastC As Long, i As Long
+    Dim stp As String
+    On Error GoTo Fail
+    stp = "start"
     Set wsV = ThisWorkbook.Sheets(SH_VIEW)
     Set wsD = ThisWorkbook.Sheets(SH_DATA)
     Set wsDef = ThisWorkbook.Sheets(SH_VIEWS)
@@ -64,6 +67,7 @@ Public Sub BuildView()
         Next p
     End If
     
+    stp = "czyszczenie"
     Application.ScreenUpdating = False
     Dim old As Range
     Set old = wsV.Range(wsV.Rows(VIEW_HEADER_ROW), wsV.Rows(wsV.Rows.Count))
@@ -72,6 +76,7 @@ Public Sub BuildView()
     old.Clear
     old.ClearComments
     
+    stp = "kopiowanie"
     If n > 0 And lastR >= DATA_HEADER_ROW Then
         For i = 1 To n
             wsD.Range(wsD.Cells(DATA_HEADER_ROW, colList(i)), wsD.Cells(lastR, colList(i))).Copy wsV.Cells(VIEW_HEADER_ROW, i)
@@ -79,11 +84,17 @@ Public Sub BuildView()
         Next i
         Application.CutCopyMode = False
     End If
+    stp = "opis"
     wsV.Range("D3").Value = "Kolumn: " & n & "  |  Wierszy: " & IIf(lastR > DATA_HEADER_ROW, lastR - DATA_HEADER_ROW, 0) & "  |  Odswiezono: " & Format(Now, "yyyy-mm-dd hh:nn")
     wsV.Range("D4").Value = IIf(missing = "", "", "Nie znaleziono kolumn: " & Left(missing, Len(missing) - 2))
     wsV.Range("A7").Value = CStr(wsD.Range("A8").Value)    ' status ostatniej aktualizacji z Baza_PW
+    stp = "filtr"
     FilterRows wsV, VIEW_HEADER_ROW, CStr(wsV.Range(VIEW_SEARCH).Value)   ' zachowaj aktywne wyszukiwanie
     Application.ScreenUpdating = True
+    Exit Sub
+Fail:
+    Application.ScreenUpdating = True
+    Err.Raise Err.Number, , Err.Description & " [BuildView: " & stp & ", kolumna " & i & "]"
 End Sub
 
 ' Szukaj w Baza_PW (pole tekstowe na tym arkuszu)
