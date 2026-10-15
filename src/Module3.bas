@@ -18,7 +18,7 @@ Sub ZbadajAtrybutyPW()
             Exit Sub
         End If
     Next r
-    MsgBox "Brak aktywnego linku w arkuszu " & SH_FOLDERS & " (kolumna B). Wklej link do folderu PW.", vbExclamation
+    Notify "Brak aktywnego linku w arkuszu " & SH_FOLDERS & " (kolumna B). Wklej link do folderu PW."
 End Sub
 
 ' Wywolywane po wklejeniu/zmianie linku w kolumnie B arkusza Foldery: wykryj atrybuty, potem pobierz dane
@@ -27,7 +27,7 @@ Public Sub OnFolderLinkPasted(ByVal Target As Range)
     If busy Then Exit Sub
     If Target.Cells.Count > 20 Then Exit Sub        ' ochrona przed kasowaniem/wklejaniem calych kolumn
     If DownloadBusy() Then                          ' trwa pobieranie w tle - nie startuj kolejnego
-        MsgBox "Pobieranie z ProjectWise juz trwa w tle. Po jego zakonczeniu kliknij AKTUALIZUJ DANE, aby objac nowy link.", vbInformation
+        Notify "Pobieranie z ProjectWise juz trwa w tle. Po jego zakonczeniu kliknij AKTUALIZUJ DANE, aby objac nowy link."
         Exit Sub
     End If
     busy = True
@@ -47,7 +47,7 @@ Public Sub OnFolderLinkPasted(ByVal Target As Range)
 Fail:
     Application.EnableEvents = True
     busy = False
-    MsgBox "Blad automatu po wklejeniu linku: " & Err.Description, vbCritical
+    Notify "Blad automatu po wklejeniu linku: " & Err.Description
 End Sub
 
 Public Function DiscoverAttributes(ByVal folderLink As String, Optional ByVal quiet As Boolean = False) As Boolean
@@ -57,7 +57,7 @@ Public Function DiscoverAttributes(ByVal folderLink As String, Optional ByVal qu
     Dim r As Long, cols() As String, cleanRow As String
     
     If ThisWorkbook.Path = "" Then
-        MsgBox "Zapisz najpierw plik Excel na dysku!", vbCritical
+        Notify "Zapisz najpierw plik Excel na dysku!"
         Exit Function
     End If
     
@@ -68,7 +68,7 @@ Public Function DiscoverAttributes(ByVal folderLink As String, Optional ByVal qu
     
     Dim dsName As String, fp As String
     If Not ParseFolderLink(folderLink, dsName, fp) Then
-        MsgBox "Nie rozpoznano linku folderu. Oczekiwany format: pw:\\serwer:Datasource\Documents\Projekt\Folder\ (zobacz arkusz Instrukcja).", vbExclamation
+        Notify "Nie rozpoznano linku folderu. Oczekiwany format: pw:\\serwer:Datasource\Documents\Projekt\Folder\ (zobacz arkusz Instrukcja)."
         Exit Function
     End If
     On Error Resume Next
@@ -177,10 +177,10 @@ Public Function DiscoverAttributes(ByVal folderLink As String, Optional ByVal qu
         DiscoverAttributes = True
         If Not quiet Then
             wsDiag.Activate
-            MsgBox "Gotowe. Dopisano " & added & " nowych atrybutow do arkusza " & SH_ATTRS & ".", vbInformation
+            Notify "Gotowe. Dopisano " & added & " nowych atrybutow do arkusza " & SH_ATTRS & "."
         End If
     Else
-        MsgBox "Nie udalo sie wykryc atrybutow. Sprawdz okno PowerShell i link folderu.", vbCritical
+        Notify "Nie udalo sie wykryc atrybutow. Sprawdz okno PowerShell i link folderu."
     End If
     
     On Error Resume Next

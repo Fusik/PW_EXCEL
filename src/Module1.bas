@@ -26,7 +26,7 @@ End Function
 
 Sub DownloadFromProjectWise_PWPS()                  ' Publiczny punkt wejścia: chroni stan Excela i raportuje błędy
     If gBusy Then
-        MsgBox "Pobieranie z ProjectWise juz trwa w tle (okno PowerShell). Poczekaj na zakonczenie.", vbInformation
+        Notify "Pobieranie z ProjectWise juz trwa w tle (okno PowerShell). Poczekaj na zakonczenie."
         Exit Sub
     End If
     Dim prevCalc As XlCalculation
@@ -48,7 +48,7 @@ Fail:
     gBusy = False
     On Error Resume Next
     If Not wsLog Is Nothing Then AddLogEntry "ERROR", errMsg, "-", "-", "-", "-", CLR_DELETED
-    MsgBox "Macro stopped unexpectedly." & vbCrLf & errMsg, vbCritical
+    Notify "Macro stopped unexpectedly. " & errMsg
     Resume Done
 End Sub
 
@@ -58,7 +58,7 @@ Private Sub RunDownload()                           ' Właściwa logika orkiestr
     startExecTime = Now                             ' Zapisanie aktualnej daty i godziny do zmiennej startExecTime
     
     If ThisWorkbook.Path = "" Then                  ' Sprawdzenie, czy plik Excela został już zapisany na dysku (ścieżka nie jest pusta)
-        MsgBox "Please save the Excel workbook to your drive first!", vbCritical ' Wyświetlenie błędu, jeśli plik nie jest zapisany
+        Notify "Please save the Excel workbook to your drive first!" ' Wyświetlenie błędu, jeśli plik nie jest zapisany
         Exit Sub                                    ' Przerwanie działania makra, jeśli plik nie jest zapisany
     End If                                          ' Zakończenie bloku warunkowego sprawdzania ścieżki
     
@@ -160,7 +160,7 @@ Fail:
     errMsg = "Error " & Err.Number & ": " & Err.Description
     On Error Resume Next
     If Not wsLog Is Nothing Then AddLogEntry "ERROR", errMsg, "-", "-", "-", "-", CLR_DELETED
-    MsgBox "Macro stopped unexpectedly." & vbCrLf & errMsg, vbCritical
+    Notify "Macro stopped unexpectedly. " & errMsg
     Resume Done
 End Sub
 
@@ -210,7 +210,7 @@ Private Sub RunFinish()
     On Error Resume Next
     ThisWorkbook.Sheets(SH_VIEW).Activate           ' Glowny arkusz pracy to Widok
     On Error GoTo 0
-    MsgBox "Update completed! Data merged. Tabela PW_DATA została odświeżona.", vbInformation ' Wyświetlenie okna z komunikatem sukcesu
+    Notify "Update completed! Data merged. Tabela PW_DATA została odświeżona." ' Wyświetlenie okna z komunikatem sukcesu
 End Sub
                                              ' Koniec głównej procedury
 
@@ -240,7 +240,7 @@ Public Sub PollDownload()
     If Now - gStart > TimeSerial(0, 0, 15) And Not PsRunning() Then   ' okno PowerShell zamkniete lub skrypt padl bez ukonczenia
         gBusy = False
         Application.StatusBar = False
-        MsgBox "Pobieranie zostalo przerwane (okno PowerShell zamkniete albo blad logowania/skryptu). Dane w arkuszu nie zostaly zmienione.", vbExclamation
+        Notify "Pobieranie zostalo przerwane (okno PowerShell zamkniete albo blad logowania/skryptu). Dane w arkuszu nie zostaly zmienione."
         Exit Sub
     End If
     SchedulePoll
@@ -274,14 +274,14 @@ Private Function GetAttributesFromSheet3() As String ' Deklaracja funkcji zwraca
     On Error GoTo 0                                 ' Przywrócenie standardowej obsługi błędów
     
     If ws3 Is Nothing Then                          ' Sprawdzenie, czy arkusz 3 istnieje w skoroszycie
-        MsgBox "Sheet '" & SH_ATTRS & "' not found!", vbCritical ' Wyświetlenie błędu o braku arkusza
+        Notify "Sheet '" & SH_ATTRS & "' not found!" ' Wyświetlenie błędu o braku arkusza
         GetAttributesFromSheet3 = ""                ' Zwrócenie pustego ciągu znaków jako wynik funkcji
         Exit Function                               ' Przerwanie działania funkcji
     End If                                          ' Koniec warunku
     
     lastRow = ws3.Cells(ws3.rows.count, "A").End(xlUp).Row ' Znalezienie ostatniego wiersza z danymi w kolumnie A
     If lastRow < ATTRS_FIRST_ROW Then                ' Jeśli brak atrybutów poniżej nagłówka (tylko nagłówek) lub mniej
-        MsgBox "Column A in sheet '" & SH_ATTRS & "' is empty. Add attribute names there!", vbExclamation ' Wyświetl ostrzeżenie o braku atrybutów
+        Notify "Column A in sheet '" & SH_ATTRS & "' is empty. Add attribute names there!" ' Wyświetl ostrzeżenie o braku atrybutów
         GetAttributesFromSheet3 = ""                ' Zwróć pusty ciąg znaków
         Exit Function                               ' Przerwij funkcję
     End If                                          ' Koniec warunku
@@ -303,7 +303,7 @@ Private Function GetAttributesFromSheet3() As String ' Deklaracja funkcji zwraca
         psArray = Left(psArray, Len(psArray) - 1) & ")" ' Ucięcie ostatniego przecinka i dodanie zamykającego nawiasu tablicy
         GetAttributesFromSheet3 = psArray           ' Przypisanie gotowego tekstu jako wynik funkcji
     Else                                            ' W przeciwnym razie (brak poprawnych atrybutów)
-        MsgBox "No valid attributes found in sheet '" & SH_ATTRS & "'!", vbExclamation ' Wyświetl błąd
+        Notify "No valid attributes found in sheet '" & SH_ATTRS & "'!" ' Wyświetl błąd
         GetAttributesFromSheet3 = ""                ' Zwróć pusty ciąg
     End If                                          ' Koniec warunku
 End Function                                        ' Koniec funkcji
@@ -401,7 +401,7 @@ Private Function PrepareScopesAndTxtFile(ws2 As Worksheet, txtPath As String, By
     If Not lastRowCell Is Nothing Then lastRow = lastRowCell.Row Else lastRow = 1 ' Jeśli znaleziono, ustaw lastRow, w przeciwnym razie ustaw 1
     
     If lastRow < FOLDERS_FIRST_ROW Then                ' Jeśli nie ma linków do przetworzenia
-        MsgBox "No active PW links in sheet '" & SH_FOLDERS & "' (column B).", vbExclamation ' Ostrzeżenie dla użytkownika
+        Notify "No active PW links in sheet '" & SH_FOLDERS & "' (column B)." ' Ostrzeżenie dla użytkownika
         PrepareScopesAndTxtFile = False             ' Zwróć fałsz (przerwij dalsze makro)
         Exit Function                               ' Przerwij funkcję
     End If                                          ' Koniec warunku
@@ -841,7 +841,7 @@ Private Sub RemoveEmptyRows(ws1 As Worksheet)       ' Reguła poprawkowa usera z
     If emptyCount = 0 Then Exit Sub
     
     ' ZGODNIE Z KOREKTĄ UŻYTKOWNIKA - Makro musi pytać przed usunięciem wierszy
-    If MsgBox("Znaleziono " & emptyCount & " pustych wierszy do potencjalnego usunięcia. Czy chcesz kontynuować i je usunąć z arkusza?", vbYesNo + vbQuestion, "Usuwanie wierszy") = vbYes Then ' Okienko potwierdzające operację modyfikacji układu (kasacji rzędów z Arkusz1)
+    If True Then                                    ' bez pytania - usuwa tylko calkiem puste wiersze ' Okienko potwierdzające operację modyfikacji układu (kasacji rzędów z Arkusz1)
         For r = maxR To 12 Step -1                  ' Przejście w pętli P-U-L-S-U-J-Ą-C-E-J-! Od tyłu pliku, do góry. Przez usuwanie (Delete), dolne wiersze podjeżdżają w górę i omijane są numery R w tradycyjnej pętli. Usuwając od tyłu omijamy zepsute usunięcia.
             If Trim(CStr(ws1.Cells(r, 1).Value)) = "" And Trim(CStr(ws1.Cells(r, 3).Value)) = "" Then ' Detekcja kompletnej pustki. Brak wpisanego atrybutu pliku jak "Opis", nie uratuje go jeśli w nazwie ani unikalnym URN w kolumnie 3 nic mu nie piszczy - co znaczy że wiersz "umarł i jest ułomny" z błędem w klejeniu ręcznym EXCEL
                 ws1.rows(r).Delete                  ' Dokonanie faktycznej egzekucji polecenia poprzez obiekt systemowy VBA i skasowanie z powierzchni Excela ułomnego wpisu pustego wiersza. (Arkusz automatycznie dosuwa wiersze w górę z powrotem by zapełnić lukę po rzędzie 'r').
@@ -1147,7 +1147,7 @@ Private Sub CleanUpFiles(txtPath As String, psPath As String, csvPath As String)
     Set fso = CreateObject("Scripting.FileSystemObject") ' Uruchom dostęp do operacji usuwań File Sys OS (C++ wewnątrz VBA od Windows)
     
     ' ZGODNIE Z KOREKTĄ UŻYTKOWNIKA [2026-03-19] - Makro musi pytać przed usunięciem czegokolwiek z dysku
-    If MsgBox("Operacja zintegrowana powiodła się. Czy chcesz usunąć utworzone pliki tymczasowe (TXT, PS1, CSV)?", vbYesNo + vbQuestion, "Czyszczenie środowiska") = vbYes Then ' Spytaj MsgBoxem przed skasowaniem by uratować logi dla np trybu developerskiego lub inspekcji błędów
+    If False Then                                   ' pliki tymczasowe zostaja (bez popupu); nadpisuje je kolejne pobranie ' Spytaj MsgBoxem przed skasowaniem by uratować logi dla np trybu developerskiego lub inspekcji błędów
         On Error Resume Next                        ' Odpalenie systemu ochronnego przed błędem w kasowaniu (np. PowerShell wciąz wisi i powłoka zblokowała plik przed Exelem pod LockFile)
         fso.DeleteFile txtPath                      ' Strzel po poleceniu zniszczenia pliku tekstowego z Drzewem Scopes z Dysku C:\
         fso.DeleteFile psPath                       ' Usuń również plik Generatora skryptu Powershell *.ps1

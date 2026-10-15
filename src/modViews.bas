@@ -27,7 +27,7 @@ Public Sub BuildView()
         If StrComp(Trim(CStr(wsDef.Cells(r, 1).Value)), viewName, vbTextCompare) = 0 Then defRow = r: Exit For
     Next r
     If defRow = 0 Then
-        MsgBox "Nie ma widoku '" & viewName & "' w arkuszu " & SH_VIEWS & ".", vbExclamation
+        Notify "Nie ma widoku '" & viewName & "' w arkuszu " & SH_VIEWS & "."
         Exit Sub
     End If
     spec = Trim(CStr(wsDef.Cells(defRow, 2).Value))
@@ -86,7 +86,8 @@ Public Sub BuildView()
     End If
     stp = "opis"
     wsV.Range("D3").Value = "Kolumn: " & n & "  |  Wierszy: " & IIf(lastR > DATA_HEADER_ROW, lastR - DATA_HEADER_ROW, 0) & "  |  Odswiezono: " & Format(Now, "yyyy-mm-dd hh:nn")
-    wsV.Range("D4").Value = IIf(missing = "", "", "Nie znaleziono kolumn: " & Left(missing, Len(missing) - 2))
+    wsV.Range("D4").Value = ""
+    If missing <> "" Then wsV.Range("D4").Value = "Nie znaleziono kolumn: " & Left(missing, Len(missing) - 2)
     wsV.Range("A7").Value = CStr(wsD.Range("A8").Value)    ' status ostatniej aktualizacji z Baza_PW
     stp = "filtr"
     FilterRows wsV, VIEW_HEADER_ROW, CStr(wsV.Range(VIEW_SEARCH).Value)   ' zachowaj aktywne wyszukiwanie

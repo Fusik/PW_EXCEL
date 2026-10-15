@@ -42,5 +42,5 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
     Exit Sub
 Fail:
     Application.EnableEvents = True
-    MsgBox "Blad: " & Err.Description, vbExclamation
+    Notify "Blad: " & Err.Description
 End Sub

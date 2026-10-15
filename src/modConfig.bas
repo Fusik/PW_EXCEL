@@ -53,3 +53,9 @@ Public Const CLR_FOLDER As Long = 16247773         ' jasny niebieski RGB(221,235
 Public Const CLR_CHANGED As Long = 10284031        ' jasny żółty RGB(255,235,156) - zmieniona wartość
 Public Const CLR_DELETED As Long = 13551615        ' jasny czerwony RGB(255,199,206) - plik usunięty z PW
 Public Const CLR_WHITE As Long = 16777215
+
+' Komunikat bez okna (nie blokuje Excela): pasek stanu + Immediate
+Public Sub Notify(ByVal msg As String)
+    Application.StatusBar = Left(Replace(msg, vbCrLf, " "), 250)
+    Debug.Print msg
+End Sub
