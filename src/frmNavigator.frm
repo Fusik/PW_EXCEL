@@ -17,6 +17,9 @@ Option Explicit
     Private Declare PtrSafe Function SetWindowLongPtr Lib "user32" Alias "SetWindowLongPtrA" (ByVal hWnd As LongPtr, ByVal nIndex As Long, ByVal dwNewLong As LongPtr) As LongPtr
     Private Declare PtrSafe Function DrawMenuBar Lib "user32" (ByVal hWnd As LongPtr) As Long
     Private Declare PtrSafe Function GetSystemMenu Lib "user32" (ByVal hWnd As LongPtr, ByVal bRevert As Long) As LongPtr
+    Private Declare PtrSafe Function GetDC Lib "user32" (ByVal hWnd As LongPtr) As LongPtr
+    Private Declare PtrSafe Function ReleaseDC Lib "user32" (ByVal hWnd As LongPtr, ByVal hDC As LongPtr) As Long
+    Private Declare PtrSafe Function GetDeviceCaps Lib "gdi32" (ByVal hDC As LongPtr, ByVal nIndex As Long) As Long
     Private Declare PtrSafe Function RemoveMenu Lib "user32" (ByVal hMenu As LongPtr, ByVal nPosition As Long, ByVal wFlags As Long) As Long
 #End If
 
@@ -60,6 +63,28 @@ Private Sub UserForm_Activate()
     
     ' Wymuszenie dopasowania drzewka natychmiast po pokazaniu okna
     Call UserForm_Resize
+End Sub
+
+' =====================================================================
+' PRZYPIECIE DO WIDOKU: nawigator lezy na kolumnie A (od wiersza naglowka 8 w dol, na wysokosc okna)
+' =====================================================================
+Public Sub DockToView()
+    On Error Resume Next
+    If ActiveSheet.Name <> SH_VIEW Then Exit Sub
+    Dim ws As Worksheet, pTop As Pane, pBot As Pane, dc As LongPtr, k As Double
+    Set ws = ThisWorkbook.Sheets(SH_VIEW)
+    dc = GetDC(0): k = 72 / GetDeviceCaps(dc, 88): ReleaseDC 0, dc      ' 88 = LOGPIXELSX -> piksele na punkty formularza
+    Set pTop = ActiveWindow.Panes(1)
+    Set pBot = ActiveWindow.Panes(ActiveWindow.Panes.Count)
+    Dim x1 As Double, x2 As Double, y1 As Double, y2 As Double
+    x1 = pTop.PointsToScreenPixelsX(ws.Columns(1).Left)
+    x2 = pTop.PointsToScreenPixelsX(ws.Columns(2).Left)
+    y1 = pTop.PointsToScreenPixelsY(ws.Rows(VIEW_HEADER_ROW).Top)
+    y2 = pBot.PointsToScreenPixelsY(pBot.VisibleRange.Top + pBot.VisibleRange.Height)
+    If x2 - x1 < 150 Then x2 = x1 + 150
+    Me.StartUpPosition = 0
+    Me.Left = x1 * k: Me.Top = y1 * k
+    Me.Width = (x2 - x1) * k: Me.Height = (y2 - y1) * k
 End Sub
 
 ' =====================================================================

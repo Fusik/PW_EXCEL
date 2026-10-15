@@ -13,6 +13,8 @@ Private Sub Workbook_Open()
     ' Uruchamia Nawigator w tle (Modeless = 0) od razu po starcie Excela
     EnsureViewButton
     frmNavigator.Show 0
+    frmNavigator.DockToView
+    If ActiveSheet.Name <> SH_VIEW Then frmNavigator.Hide     ' nawigator tylko na arkuszu Widok
     On Error GoTo 0
 End Sub
 
@@ -63,4 +65,33 @@ Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Ra
 Done:
     Application.EnableEvents = True
     busy = False
+End Sub
+
+' Nawigator jest widoczny tylko na arkuszu Widok i przypiety do kolumny A
+Private Sub Workbook_SheetActivate(ByVal Sh As Object)
+    On Error Resume Next
+    If Sh.Name = SH_VIEW Then
+        frmNavigator.Show 0
+        frmNavigator.DockToView
+    Else
+        frmNavigator.Hide
+    End If
+End Sub
+
+Private Sub Workbook_WindowResize(ByVal Wn As Window)
+    On Error Resume Next
+    If ActiveSheet.Name = SH_VIEW Then frmNavigator.DockToView
+End Sub
+
+Private Sub Workbook_Deactivate()
+    On Error Resume Next
+    frmNavigator.Hide                               ' inny skoroszyt na wierzchu - schowaj nawigator
+End Sub
+
+Private Sub Workbook_Activate()
+    On Error Resume Next
+    If ActiveSheet.Name = SH_VIEW Then
+        frmNavigator.Show 0
+        frmNavigator.DockToView
+    End If
 End Sub
