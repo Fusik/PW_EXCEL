@@ -81,6 +81,16 @@ Private Sub RunDownload()                           ' Właściwa logika orkiestr
     basePath = ThisWorkbook.Path                    ' Przypisanie ścieżki bieżącego pliku Excela do zmiennej
     
     Dim psArrayString As String                     ' Deklaracja zmiennej przechowującej listę atrybutów jako tekst dla PowerShella
+    If Application.WorksheetFunction.CountA(ws3.Range(ws3.Cells(ATTRS_FIRST_ROW, 1), ws3.Cells(ws3.Rows.Count, 1))) = 0 Then
+        Dim fr As Long, flnk As String              ' Brak atrybutow - wykryj je z pierwszego aktywnego folderu
+        For fr = FOLDERS_FIRST_ROW To ws2.Cells(ws2.Rows.Count, FOLDERS_LINK_COL).End(xlUp).Row
+            flnk = Trim(CStr(ws2.Cells(fr, FOLDERS_LINK_COL).Value))
+            If UCase(Left(flnk, 3)) = "PW:" And UCase(Trim(CStr(ws2.Cells(fr, FOLDERS_ACTIVE_COL).Value))) <> "NIE" Then
+                DiscoverAttributes flnk, True
+                Exit For
+            End If
+        Next fr
+    End If
     psArrayString = GetAttributesFromSheet3()       ' Wywołanie funkcji pobierającej atrybuty i przypisanie wyniku do zmiennej
     If psArrayString = "" Then Exit Sub             ' Jeśli funkcja nie zwróciła żadnych atrybutów, przerwij działanie makra
     
@@ -529,7 +539,8 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine "         if ($r.Count -eq 0) { throw 'brak wynikow' }"
     psFile.WriteLine "         if ($r[0] -is [System.Data.DataTable]) { throw 'zwrocono DataTable zamiast obiektow' }"
     psFile.WriteLine "         if ([string]::IsNullOrWhiteSpace([string]$r[0].FullPath)) { throw 'FullPath pusty mimo PopulatePath' }"
-    psFile.WriteLine "         if ([string]::IsNullOrWhiteSpace([string]$r[0].DocumentURN)) { throw ('brak DocumentURN; wlasciwosci: ' + (($r[0].PSObject.Properties.Name) -join ',')) }"
+    psFile.WriteLine "         if ([string]::IsNullOrWhiteSpace([string]$r[0].DocumentURN) -and [string]::IsNullOrWhiteSpace([string]$r[0].DocumentGUIDString)) { throw 'brak DocumentURN i GUID' }"
+    psFile.WriteLine "         foreach ($d in $r) { if ([string]::IsNullOrWhiteSpace([string]$d.DocumentURN)) { $d | Add-Member -NotePropertyName DocumentURN -NotePropertyValue ('pw://' + $dsName + '/Documents/D{' + ([string]$d.DocumentGUIDString).Trim('{}').ToLower() + '}') -Force } }"
     psFile.WriteLine "         $documents = $r"
     psFile.WriteLine "         Write-Host ('FAST PATH OK: ' + $r.Count + ' documents in ' + $fetchWatch.Elapsed.ToString('mm\:ss')) -ForegroundColor Green"
     psFile.WriteLine "     } catch { Write-Host ('FAST PATH FAILED, using slow mode: ' + $_.Exception.Message) -ForegroundColor Yellow }"
