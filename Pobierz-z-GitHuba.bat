@@ -48,17 +48,17 @@ if %errorlevel%==0 (
 
 echo Kopiowanie plikow do %DEST% ...
 rem --- istniejacy skoroszyt z danymi NIE jest nadpisywany (nowy pusty szablon trafia obok jako PW_integration_szablon.xlsm)
-set "EXCL=%TEMP%\pw_excel_exclude.txt"
+set "DEST_NS=%DEST:~0,-1%"
 if exist "%DEST%PW_integration.xlsm" (
     copy /y "%DEST%PW_integration.xlsm" "%DEST%PW_integration_backup.xlsm" >nul
     copy /y "%TMP_DIR%\PW_integration.xlsm" "%DEST%PW_integration_szablon.xlsm" >nul
-    echo PW_integration.xlsm>"%EXCL%"
-    xcopy "%TMP_DIR%\*" "%DEST%" /E /I /Y /Q /EXCLUDE:"%EXCL%" >nul
+    robocopy "%TMP_DIR%" "%DEST_NS%" /E /XF PW_integration.xlsm /NFL /NDL /NJH /NJS /NP >nul
+    if errorlevel 8 goto :fail
     echo Zachowano Twoj PW_integration.xlsm z danymi ^(kopia: PW_integration_backup.xlsm^).
 ) else (
     xcopy "%TMP_DIR%\*" "%DEST%" /E /I /Y /Q >nul
+    if errorlevel 1 goto :fail
 )
-if errorlevel 1 goto :fail
 
 rmdir /s /q "%TMP_DIR%" 2>nul
 rmdir /s /q "%TEMP%\pw_excel_download_zip" 2>nul
