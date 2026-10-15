@@ -218,7 +218,8 @@ Private Sub TreeView1_NodeClick(ByVal Node As MSComctlLib.Node)
         Dim wsV As Worksheet, vRow As Long
         Set wsV = ThisWorkbook.Sheets(SH_VIEW)
         vRow = targetRow - DATA_HEADER_ROW + VIEW_HEADER_ROW        ' wiersz Baza_PW -> wiersz w Widok (kopia 1:1)
-        If StrComp(CStr(wsV.Cells(vRow, 1).Value), CStr(ws.Cells(targetRow, 1).Value), vbTextCompare) = 0 And Not wsV.Rows(vRow).Hidden Then
+        If StrComp(CStr(wsV.Cells(vRow, 2).Value), CStr(ws.Cells(targetRow, 1).Value), vbTextCompare) = 0 Then
+            wsV.Rows(vRow).Hidden = False                           ' plik byl zwiniety pod folderem
             wsV.Activate                                            ' glowny arkusz pracy - Widok
             wsV.Rows(vRow).Select
             ActiveWindow.ScrollRow = vRow - 10

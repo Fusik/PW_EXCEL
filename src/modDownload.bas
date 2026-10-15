@@ -27,14 +27,24 @@ Public Sub PobierzPlikiPW()
     Dim fso As Object, lastR As Long, r As Long, lnk As String, n As Long, lst As Object
     Set fso = CreateObject("Scripting.FileSystemObject")
     Set lst = CreateObject("System.Collections.ArrayList")
-    lastR = wsV.Cells(wsV.Rows.Count, 1).End(xlUp).Row
+    lastR = wsV.UsedRange.Row + wsV.UsedRange.Rows.Count - 1
+    ' Zaznaczenie kilku wierszy = tylko te wiersze oraz pliki zaznaczonych folderow; jedna komorka = wszystko (bez wierszy ukrytych wyszukiwaniem)
+    Dim multi As Boolean, folderSel As Boolean, inSel As Boolean, skipHidden As Boolean
+    multi = (ActiveSheet.Name = SH_VIEW And Selection.Rows.Count > 1)
+    skipHidden = (Len(Trim(CStr(wsV.Range(VIEW_SEARCH).Value))) >= 2)
     For r = VIEW_HEADER_ROW + 1 To lastR
-        If Not wsV.Rows(r).Hidden Then
-            If wsV.Cells(r, linkCol).Hyperlinks.Count > 0 Then lnk = wsV.Cells(r, linkCol).Hyperlinks(1).Address Else lnk = Trim(CStr(wsV.Cells(r, linkCol).Value))
-            If UCase(Left(lnk, 3)) = "PW:" And InStr(lnk, "/Documents/D{") > 0 Then lst.Add lnk
+        If wsV.Cells(r, 1).Interior.Color = CLR_FOLDER Then
+            folderSel = multi And Not Intersect(wsV.Rows(r), Selection) Is Nothing
+        Else
+            inSel = Not multi
+            If multi Then inSel = folderSel Or Not Intersect(wsV.Rows(r), Selection) Is Nothing
+            If inSel And Not (skipHidden And wsV.Rows(r).Hidden) Then
+                If wsV.Cells(r, linkCol).Hyperlinks.Count > 0 Then lnk = wsV.Cells(r, linkCol).Hyperlinks(1).Address Else lnk = Trim(CStr(wsV.Cells(r, linkCol).Value))
+                If UCase(Left(lnk, 3)) = "PW:" And InStr(lnk, "/Documents/D{") > 0 Then lst.Add lnk
+            End If
         End If
     Next r
-    If lst.Count = 0 Then Notify "Brak plikow z PW Link w widocznych wierszach Widoku.": Exit Sub
+    If lst.Count = 0 Then Notify "Brak plikow z PW Link do pobrania (zaznacz wiersze albo kliknij jedna komorke).": Exit Sub
     
     If MsgBox("Pobrac " & lst.Count & " plik(ow) do:" & vbCrLf & target & vbCrLf & vbCrLf & _
               "Skrypt steruje klawiatura i oknem ProjectWise - w trakcie nie dotykaj klawiatury ani myszy. Przerwanie: zamknij okno PowerShell.", _

@@ -71,6 +71,7 @@ Public Sub BuildView()
     Application.ScreenUpdating = False
     Dim old As Range
     Set old = wsV.Range(wsV.Rows(VIEW_HEADER_ROW), wsV.Rows(wsV.Rows.Count))
+    old.ClearOutline
     old.EntireRow.Hidden = False                    ' po filtrowaniu Szukaj - odkryj wiersze przed przebudowa
     old.Hyperlinks.Delete
     old.Clear
@@ -79,10 +80,11 @@ Public Sub BuildView()
     stp = "kopiowanie"
     If n > 0 And lastR >= DATA_HEADER_ROW Then
         For i = 1 To n
-            wsD.Range(wsD.Cells(DATA_HEADER_ROW, colList(i)), wsD.Cells(lastR, colList(i))).Copy wsV.Cells(VIEW_HEADER_ROW, i)
-            wsV.Columns(i).ColumnWidth = wsD.Columns(colList(i)).ColumnWidth
+            wsD.Range(wsD.Cells(DATA_HEADER_ROW, colList(i)), wsD.Cells(lastR, colList(i))).Copy wsV.Cells(VIEW_HEADER_ROW, i + 1)
+            wsV.Columns(i + 1).ColumnWidth = wsD.Columns(colList(i)).ColumnWidth
         Next i
         Application.CutCopyMode = False
+        BuildTree wsV, wsD, lastR
     End If
     stp = "opis"
     wsV.Range("D3").Value = "Kolumn: " & n & "  |  Wierszy: " & IIf(lastR > DATA_HEADER_ROW, lastR - DATA_HEADER_ROW, 0) & "  |  Odswiezono: " & Format(Now, "yyyy-mm-dd hh:nn")
@@ -91,11 +93,63 @@ Public Sub BuildView()
     wsV.Range("A7").Value = CStr(wsD.Range("A8").Value)    ' status ostatniej aktualizacji z Baza_PW
     stp = "filtr"
     FilterRows wsV, VIEW_HEADER_ROW, CStr(wsV.Range(VIEW_SEARCH).Value)   ' zachowaj aktywne wyszukiwanie
+    If Len(Trim(CStr(wsV.Range(VIEW_SEARCH).Value))) < 2 Then CollapseFiles wsV
     Application.ScreenUpdating = True
     Exit Sub
 Fail:
     Application.ScreenUpdating = True
     Err.Raise Err.Number, , Err.Description & " [BuildView: " & stp & ", kolumna " & i & "]"
+End Sub
+
+' Kolumna A widoku = drzewo folderow (wciecie wg glebokosci sciezki); pliki folderu sa pod nim, od kolumny B, i da sie je zwinac (+/- z lewej)
+Private Sub BuildTree(wsV As Worksheet, wsD As Worksheet, ByVal lastR As Long)
+    Dim n As Long, r As Long, d() As Long, isF() As Boolean, txt As String, minD As Long, k As Long
+    n = lastR - DATA_HEADER_ROW
+    If n < 1 Then Exit Sub
+    ReDim d(1 To n): ReDim isF(1 To n)
+    minD = 99
+    For r = 1 To n
+        If wsD.Cells(DATA_HEADER_ROW + r, 1).Interior.Color = CLR_FOLDER Then
+            isF(r) = True
+            txt = Replace(CStr(wsD.Cells(DATA_HEADER_ROW + r, 1).Value), "/", "")
+            d(r) = Len(txt) - Len(Replace(txt, "", ""))
+            If d(r) < minD Then minD = d(r)
+        End If
+    Next r
+    With wsV.Cells(VIEW_HEADER_ROW, 1)
+        .Value = "Drzewo folderow"
+        .Interior.Color = CLR_HEADER: .Font.Color = CLR_WHITE: .Font.Bold = True
+    End With
+    wsV.Columns(1).ColumnWidth = 38
+    wsV.Outline.SummaryRow = xlSummaryAbove
+    Dim lvl As Long, fileLvl As Long
+    fileLvl = 1
+    For r = 1 To n
+        k = VIEW_HEADER_ROW + r
+        If isF(r) Then
+            lvl = d(r) - minD + 1: If lvl > 7 Then lvl = 7
+            txt = Replace(CStr(wsD.Cells(DATA_HEADER_ROW + r, 1).Value), "/", "")
+            If Right(txt, 1) = "" Then txt = Left(txt, Len(txt) - 1)
+            With wsV.Cells(k, 1)
+                .Value = Mid(txt, InStrRev(txt, "") + 1)
+                .IndentLevel = lvl - 1
+                .Interior.Color = CLR_FOLDER: .Font.Bold = True
+            End With
+            wsV.Rows(k).OutlineLevel = lvl
+            fileLvl = lvl + 1: If fileLvl > 8 Then fileLvl = 8
+        Else
+            wsV.Rows(k).OutlineLevel = fileLvl
+        End If
+    Next r
+End Sub
+
+' Zwija pliki pod folderami (foldery zostaja widoczne)
+Public Sub CollapseFiles(wsV As Worksheet)
+    Dim lastR As Long, r As Long
+    lastR = wsV.UsedRange.Row + wsV.UsedRange.Rows.Count - 1
+    For r = VIEW_HEADER_ROW + 1 To lastR
+        If wsV.Cells(r, 1).Interior.Color <> CLR_FOLDER Then wsV.Rows(r).Hidden = True
+    Next r
 End Sub
 
 ' Szukaj w Baza_PW (pole tekstowe na tym arkuszu)
@@ -106,7 +160,7 @@ End Sub
 ' Pokazuje tylko wiersze zawierajace fraze (w dowolnej kolumnie); wiersz folderu (niebieski) widoczny, gdy pasuje on sam lub ktorys jego plik
 Public Sub FilterRows(ws As Worksheet, ByVal headerRow As Long, ByVal txt As String)
     Dim lastR As Long, lastC As Long, r As Long, c As Long, n As Long
-    lastR = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    lastR = ws.UsedRange.Row + ws.UsedRange.Rows.Count - 1
     If lastR <= headerRow Then Exit Sub
     txt = Trim(txt)
     Application.ScreenUpdating = False
