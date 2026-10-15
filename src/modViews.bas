@@ -1,6 +1,10 @@
 Attribute VB_Name = "modViews"
 Option Explicit
 
+' Typy wierszy widoku (do motywu): 0 plik, 1 folder, 2 usuniety; indeks = wiersz widoku - VIEW_HEADER_ROW
+Public gRowType() As Byte
+Public gRowCount As Long
+
 ' =======================================================================
 ' WIDOKI: Baza_PW wyswietlona wg szablonu z arkusza Widoki.
 ' Definicja widoku (kolumna B): lista kolumn Baza_PW w kolejnosci wyswietlania, oddzielona , lub ;
@@ -106,10 +110,6 @@ Fail:
     Application.ScreenUpdating = True
     Err.Raise Err.Number, , Err.Description & " [BuildView: " & stp & ", kolumna " & i & "]"
 End Sub
-
-' Typy wierszy widoku (do motywu): 0 plik, 1 folder, 2 usuniety; indeks = wiersz widoku - VIEW_HEADER_ROW
-Public gRowType() As Byte
-Public gRowCount As Long
 
 ' Kolumna A widoku = drzewo folderow (wciecie wg glebokosci sciezki); pliki folderu sa pod nim, od kolumny B, i da sie je zwinac (+/- z lewej)
 Private Sub BuildTree(wsV As Worksheet, wsD As Worksheet, ByVal lastR As Long)
