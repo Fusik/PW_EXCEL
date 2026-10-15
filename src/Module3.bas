@@ -13,7 +13,7 @@ Sub ZbadajAtrybutyPW()
     lastR = wsF.Cells(wsF.Rows.Count, FOLDERS_LINK_COL).End(xlUp).Row
     For r = FOLDERS_FIRST_ROW To lastR
         lnk = Trim(CStr(wsF.Cells(r, FOLDERS_LINK_COL).Value))
-        If UCase(Left(lnk, 3)) = "PW:" And UCase(Trim(CStr(wsF.Cells(r, FOLDERS_ACTIVE_COL).Value))) <> "NIE" Then
+        If UCase(Left(lnk, 3)) = "PW:" And Not IsNo(wsF.Cells(r, FOLDERS_ACTIVE_COL).Value) Then
             DiscoverAttributes lnk
             Exit Sub
         End If
@@ -36,7 +36,7 @@ Public Sub OnFolderLinkPasted(ByVal Target As Range)
     Application.EnableEvents = False
     For Each c In Target.Cells
         lnk = Trim(CStr(c.Value))
-        If UCase(Left(lnk, 3)) = "PW:" And UCase(Trim(CStr(c.Worksheet.Cells(c.Row, FOLDERS_ACTIVE_COL).Value))) <> "NIE" Then
+        If UCase(Left(lnk, 3)) = "PW:" And Not IsNo(c.Worksheet.Cells(c.Row, FOLDERS_ACTIVE_COL).Value) Then
             If DiscoverAttributes(lnk, True) Then ok = True
         End If
     Next c
@@ -214,11 +214,11 @@ Private Function MergeAttributes(wsDiag As Worksheet) As Long
                 wsA.Cells(lastA, 1).Value = nm
                 ' atrybuty projektu: domyslnie TAK; wlasciwosci systemowe: tylko przydatne, reszta NIE (do wlaczenia recznie)
                 If typ = "ATRYBUT" Then
-                    pobierac = "TAK"
+                    pobierac = "YES"
                 ElseIf InStr(1, "," & ATTRS_SYSTEM_DEFAULTS & ",", "," & nm & ",", vbTextCompare) > 0 Then
-                    pobierac = "TAK"
+                    pobierac = "YES"
                 Else
-                    pobierac = "NIE"
+                    pobierac = "NO"
                 End If
                 wsA.Cells(lastA, ATTRS_ENABLE_COL).Value = pobierac
                 wsA.Cells(lastA, ATTRS_TYPE_COL).Value = typ

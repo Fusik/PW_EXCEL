@@ -12,7 +12,7 @@ Public Sub TestSzybkosciPW()
     lastR = wsF.Cells(wsF.Rows.Count, FOLDERS_LINK_COL).End(xlUp).Row
     For r = FOLDERS_FIRST_ROW To lastR
         lnk = Trim(CStr(wsF.Cells(r, FOLDERS_LINK_COL).Value))
-        If UCase(Left(lnk, 3)) = "PW:" And UCase(Trim(CStr(wsF.Cells(r, FOLDERS_ACTIVE_COL).Value))) <> "NIE" Then found = lnk: Exit For
+        If UCase(Left(lnk, 3)) = "PW:" And Not IsNo(wsF.Cells(r, FOLDERS_ACTIVE_COL).Value) Then found = lnk: Exit For
     Next r
     If found = "" Then MsgBox "Brak aktywnego linku w arkuszu " & SH_FOLDERS & ".", vbExclamation: Exit Sub
     If ThisWorkbook.Path = "" Then MsgBox "Save the workbook to disk first.", vbCritical: Exit Sub
@@ -174,7 +174,7 @@ Public Sub TestPobieraniaPW()
     Set wsF = ThisWorkbook.Sheets(SH_FOLDERS)
     For r = FOLDERS_FIRST_ROW To wsF.Cells(wsF.Rows.Count, FOLDERS_LINK_COL).End(xlUp).Row
         lnk = Trim(CStr(wsF.Cells(r, FOLDERS_LINK_COL).Value))
-        If UCase(Left(lnk, 3)) = "PW:" And UCase(Trim(CStr(wsF.Cells(r, FOLDERS_ACTIVE_COL).Value))) <> "NIE" Then found = lnk: Exit For
+        If UCase(Left(lnk, 3)) = "PW:" And Not IsNo(wsF.Cells(r, FOLDERS_ACTIVE_COL).Value) Then found = lnk: Exit For
     Next r
     If found = "" Then Notify "Brak aktywnego linku w arkuszu " & SH_FOLDERS: Exit Sub
     If ThisWorkbook.Path = "" Then Notify "Save the workbook to disk first": Exit Sub

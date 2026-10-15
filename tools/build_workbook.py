@@ -2,7 +2,7 @@
 """Przebudowuje UI skoroszytu PW_integrationg.xlsm na poziomie XML (zachowuje makra, przyciski i pole wyszukiwania).
 
 Uzycie:  python3 tools/build_workbook.py <wejsciowy.xlsm> <wyjsciowy.xlsm>
-Wejscie = ORYGINALNY plik (arkusze Sheet_1, Sheet_2, Sheet_3, PW_Diagnostyka, Log).
+Wejscie = ORYGINALNY plik (arkusze Sheet_1, Sheet_2, Sheet_3, PW_Diagnostics, Log).
 """
 import re, sys, zipfile, math
 from xml.sax.saxutils import escape
@@ -142,7 +142,7 @@ def sheet_xml(sh, widths, tab, view='', cf='', dv='', extra_head='', gridlines=F
             ('<hyperlinks>%s</hyperlinks>' % ''.join(sh.links) if sh.links else '') +
             '<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/><pageSetup paperSize="9" orientation="%s" fitToHeight="0"/>' % ('landscape' if landscape else 'portrait') + tail_extra + '</worksheet>')
 
-# ------------------------------------------------------------------ Foldery (old Sheet_2)
+# ------------------------------------------------------------------ Folders (old Sheet_2)
 sst = re.findall(r'<si><t[^>]*>(.*?)</t></si>', T('xl/sharedStrings.xml'), re.S)
 unesc = lambda s: s.replace('&amp;', '&')
 L = {i: unesc(v) for i, v in enumerate(sst)}
@@ -150,45 +150,45 @@ links = [('pw:\\\\pa7PJWW2K01.egis.racine.local:ENQE01301_SZC_Sizewell_EPR\\Docu
 sample_folder = L[12]
 
 f = Sheet()
-banner(f, 3, 'Foldery do skanowania', 'Lista folderów ProjectWise, z których makro pobiera pliki (razem ze wszystkimi podfolderami).')
+banner(f, 3, 'Folders to scan', 'ProjectWise folders the macro downloads files from (including all subfolders).')
 for c in range(1, 4): f.put(c, 3, None, 'text')
-f.put(1, 3, 'Jak wypełniać: wklej link do folderu z ProjectWise do kolumny B (jeden folder = jeden wiersz). Kolumna A: TAK = skanuj, NIE = pomiń bez kasowania wiersza. '
-            'Kolumna C to dowolna notatka. AUTOMAT: po wklejeniu linku makro samo wykrywa atrybuty (arkusz Atrybuty) i pobiera dane.', 'text', ht=36); f.merge(1, 3, 3, 3)
-f.put(1, 4, 'Wzorzec linku:', 'lab', ht=22)
-f.put(2, 4, 'pw:\\\\<serwer>:<Datasource>\\Documents\\<Projekt>\\<Folder>\\<Podfolder>\\', 'mono'); f.put(3, 4, 'Szczegóły i przykłady: arkusz Instrukcja', 'note')
-f.put(1, 5, 'Aktywny', 'hdrc', ht=24); f.put(2, 5, 'Link do folderu ProjectWise', 'hdr'); f.put(3, 5, 'Opis (opcjonalnie)', 'hdr')
+f.put(1, 3, 'How to fill in: paste a ProjectWise folder link into column B (one folder = one row). Column A: YES = scan, NO = skip without deleting the row. '
+            'Column C is a free note. AUTOMATIC: after you paste a link the macro discovers the attributes (sheet Attributes) and downloads the data.', 'text', ht=36); f.merge(1, 3, 3, 3)
+f.put(1, 4, 'Link pattern:', 'lab', ht=22)
+f.put(2, 4, 'pw:\\\\<server>:<Datasource>\\Documents\\<Project>\\<Folder>\\<Subfolder>\\', 'mono'); f.put(3, 4, 'Details and examples: sheet Guide', 'note')
+f.put(1, 5, 'Active', 'hdrc', ht=24); f.put(2, 5, 'ProjectWise folder link', 'hdr'); f.put(3, 5, 'Description (optional)', 'hdr')
 for i in range(100):
     r = 6 + i
     lk, ds = links[i] if i < len(links) else (None, None)
-    f.put(1, r, 'TAK' if lk else None, 'in_c', ht=20); f.put(2, r, lk, 'in_mono'); f.put(3, r, ds, 'in_l')
+    f.put(1, r, 'YES' if lk else None, 'in_c', ht=20); f.put(2, r, lk, 'in_mono'); f.put(3, r, ds, 'in_l')
 f_cf = ('<conditionalFormatting sqref="B6:B105"><cfRule type="expression" dxfId="0" priority="1"><formula>AND(B6&lt;&gt;"",LOWER(LEFT(TRIM(B6),3))&lt;&gt;"pw:")</formula></cfRule></conditionalFormatting>'
-        '<conditionalFormatting sqref="A6:C105"><cfRule type="expression" dxfId="1" priority="2"><formula>UPPER(TRIM($A6))="NIE"</formula></cfRule></conditionalFormatting>')
+        '<conditionalFormatting sqref="A6:C105"><cfRule type="expression" dxfId="1" priority="2"><formula>UPPER(TRIM($A6))="NO"</formula></cfRule></conditionalFormatting>')
 f_dv = ('<dataValidations count="2">'
-        '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Aktywny" error="Wybierz TAK lub NIE." promptTitle="Aktywny" prompt="TAK = folder jest skanowany, NIE = pomijany." sqref="A6:A105"><formula1>"TAK,NIE"</formula1></dataValidation>'
-        '<dataValidation type="custom" errorStyle="warning" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="To nie wygląda na link PW" error="Link do folderu powinien zaczynać się od pw:\\\\ (skopiuj go z ProjectWise Explorer). Zapisać mimo to?" promptTitle="Link do folderu PW" prompt="Format: pw:\\\\serwer:Datasource\\Documents\\Projekt\\Folder\\" sqref="B6:B105"><formula1>LOWER(LEFT(TRIM(B6),3))="pw:"</formula1></dataValidation>'
+        '<dataValidation type="list" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="Active" error="Choose YES or NO." promptTitle="Active" prompt="YES = folder is scanned, NO = skipped." sqref="A6:A105"><formula1>"YES,NO"</formula1></dataValidation>'
+        '<dataValidation type="custom" errorStyle="warning" allowBlank="1" showInputMessage="1" showErrorMessage="1" errorTitle="This does not look like a PW link" error="The folder link should start with pw:\\\\ (copy it from ProjectWise Explorer). Save anyway?" promptTitle="PW folder link" prompt="Format: pw:\\\\serwer:Datasource\\Documents\\Projekt\\Folder\\" sqref="B6:B105"><formula1>LOWER(LEFT(TRIM(B6),3))="pw:"</formula1></dataValidation>'
         '</dataValidations>')
 files['xl/worksheets/sheet2.xml'] = sheet_xml(f, [15, 118, 50], '2F5597', '<pane ySplit="5" topLeftCell="A6" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="B6" sqref="B6"/>', f_cf, f_dv, codename='Sheet2').encode('utf-8')
 files['xl/worksheets/_rels/sheet2.xml.rels'] = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>'
 
-# ------------------------------------------------------------------ Atrybuty (old Sheet_3)
+# ------------------------------------------------------------------ Attributes (old Sheet_3)
 a = Sheet()
-banner(a, 5, 'Atrybuty do pobrania', 'Wypełniane automatycznie po wklejeniu linku w arkuszu Foldery. Atrybuty z TAK w kolumnie B stają się kolumnami w Baza_PW.')
+banner(a, 5, 'Attributes to download', 'Filled in automatically after you paste a link in sheet Folders. Attributes marked YES in column B become columns in PW_Data.')
 for c in range(1, 5): a.put(c, 3, None, 'text')
-a.put(1, 3, 'Lista uzupełnia się sama (nowe atrybuty są dopisywane, nic nie jest kasowane). Zmień TAK/NIE, aby włączyć lub wyłączyć kolumnę; własne atrybuty możesz dopisać na końcu.', 'note', ht=34); a.merge(1, 3, 3, 3)
+a.put(1, 3, 'The list fills itself (new attributes are appended, nothing is deleted). Change YES/NO to enable or disable a column; you can add your own attributes at the end.', 'note', ht=34); a.merge(1, 3, 3, 3)
 a.put(1, 4, None, 'text', ht=6)
-for i, h in enumerate(['Nazwa atrybutu', 'Pobierać', 'Typ', 'Przykładowa wartość', 'Opis (dla Ciebie)']): a.put(i + 1, 5, h, 'hdr' if i != 1 else 'hdrc', ht=24)
+for i, h in enumerate(['Attribute name', 'Download', 'Type', 'Example value', 'Notes (for you)']): a.put(i + 1, 5, h, 'hdr' if i != 1 else 'hdrc', ht=24)
 for i in range(300):
     r = 6 + i
     a.put(1, r, None, 'in_l', ht=20); a.put(2, r, None, 'in_c'); a.put(3, r, None, 'in_c'); a.put(4, r, None, 'in_l'); a.put(5, r, None, 'in_l')
-a_cf = ('<conditionalFormatting sqref="A6:E305"><cfRule type="expression" dxfId="1" priority="1"><formula>UPPER(TRIM($B6))="NIE"</formula></cfRule></conditionalFormatting>'
+a_cf = ('<conditionalFormatting sqref="A6:E305"><cfRule type="expression" dxfId="1" priority="1"><formula>UPPER(TRIM($B6))="NO"</formula></cfRule></conditionalFormatting>'
         '<conditionalFormatting sqref="A6:A305"><cfRule type="duplicateValues" dxfId="2" priority="2"/></conditionalFormatting>')
-a_dv = ('<dataValidations count="1"><dataValidation type="list" allowBlank="1" showErrorMessage="1" errorTitle="Pobierać" error="Wybierz TAK lub NIE." sqref="B6:B305"><formula1>"TAK,NIE"</formula1></dataValidation></dataValidations>')
+a_dv = ('<dataValidations count="1"><dataValidation type="list" allowBlank="1" showErrorMessage="1" errorTitle="Download" error="Choose YES or NO." sqref="B6:B305"><formula1>"YES,NO"</formula1></dataValidation></dataValidations>')
 files['xl/worksheets/sheet3.xml'] = sheet_xml(a, [40, 11, 12, 55, 45], '2F5597', '<pane ySplit="5" topLeftCell="A6" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A6" sqref="A6"/>', a_cf, a_dv, codename='Sheet3', tail_extra='<drawing r:id="rId1"/>').encode('utf-8')
 
-# ------------------------------------------------------------------ Diagnostyka (old PW_Diagnostyka)
+# ------------------------------------------------------------------ Diagnostics (old PW_Diagnostics)
 d = Sheet()
-d.put(1, 1, 'Nazwa atrybutu (skopiuj do kolumny A w arkuszu Atrybuty)', 'hdr', ht=24); d.put(2, 1, 'Przykładowa wartość (z 1 pliku)', 'hdr')
-d.put(1, 2, 'Brak danych – uruchom „Zbadaj atrybuty” na arkuszu Atrybuty.', 'note', ht=20)
+d.put(1, 1, 'Attribute name (copy to column A in sheet Attributes)', 'hdr', ht=24); d.put(2, 1, 'Example value (from 1 file)', 'hdr')
+d.put(1, 2, 'No data - run DISCOVER ATTRIBUTES on sheet Attributes.', 'note', ht=20)
 files['xl/worksheets/sheet4.xml'] = sheet_xml(d, [58, 110], '7F7F7F', '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/>', gridlines=True, codename='Sheet4').encode('utf-8')
 
 # ------------------------------------------------------------------ Log
@@ -197,18 +197,18 @@ for i, h in enumerate(['Date and Time', 'Action', 'File Name', 'Changed Attribut
     lg.put(i + 1, 1, h, 'hdr', ht=24)
 files['xl/worksheets/sheet5.xml'] = sheet_xml(lg, [21, 12, 60, 28, 42, 42, 30], 'A6A6A6', '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A2" sqref="A2"/>', gridlines=True, codename='Sheet6', col_styles={0: S['date'], 1: S['logtxt'], 2: S['logtxt'], 3: S['logtxt'], 4: S['logtxt'], 5: S['logtxt'], 6: S['logtxt']}).encode('utf-8')
 
-# ------------------------------------------------------------------ Baza_PW (old Sheet_1)
+# ------------------------------------------------------------------ PW_Data (old Sheet_1)
 s1 = T('xl/worksheets/sheet1.xml')
 root = re.match(r'(<\?xml[^>]*\?>\s*<worksheet[^>]*>)', s1).group(1)
 tail = s1[s1.index('<pageMargins'):]
 b = Sheet()
 for r in (1, 2): b.fillrow(r, 1, 11, 'band')
-b.put(1, 1, 'Baza plików ProjectWise', 'title', ht=28); b.put(1, 2, 'Lista plików z wybranych folderów PW wraz z atrybutami. Zmiany względem poprzedniej aktualizacji są oznaczone kolorami.', 'sub', ht=18)
+b.put(1, 1, 'ProjectWise file database', 'title', ht=28); b.put(1, 2, 'File list from the selected PW folders with attributes. Changes since the previous update are colour-coded.', 'sub', ht=18)
 b.ht[3] = 17; b.ht[4] = 17
-b.put(1, 5, 'Legenda kolorów  →', 'legend', ht=18); b.put(2, 5, 'Niebieski wiersz = folder', 'sw_blue'); b.put(3, 5, 'Żółta komórka = zmieniona wartość', 'sw_yel'); b.put(4, 5, 'Czerwony wiersz = usunięty z PW', 'sw_red')
+b.put(1, 5, 'Colour legend  →', 'legend', ht=18); b.put(2, 5, 'Blue row = folder', 'sw_blue'); b.put(3, 5, 'Yellow cell = changed value', 'sw_yel'); b.put(4, 5, 'Red row = deleted from PW', 'sw_red')
 b.put(1, 6, None, 'search', ht=26)
-b.put(1, 7, '↑ Pole wyszukiwania: wpisz frazę, aby przefiltrować listę (po dowolnej kolumnie). Wyczyść pole, aby pokazać wszystko.', 'note', ht=15)
-b.put(1, 8, 'Last Database Update: – (aktualizacja jeszcze nie była uruchamiana)', 'status', ht=22)
+b.put(1, 7, '↑ Search box: type a phrase to filter the list (any column). Clear it to show everything.', 'note', ht=15)
+b.put(1, 8, 'Last Database Update: - (no update has been run yet)', 'status', ht=22)
 b.ht[9] = 4; b.ht[10] = 4
 for i, h in enumerate(['File Name', 'PW Source Path', 'PW Link', 'Updater', 'Updated']): b.put(i + 1, 11, h, 'hdr', ht=24)
 for c in range(6, 11): b.put(c, 11, None, 'hdr')
@@ -235,52 +235,52 @@ def button(i, name, macro, text, c1, c2, r1, r2, color, edit='oneCell'):
             '<a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="pl-PL" sz="1100" b="1"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:rPr><a:t>%s</a:t></a:r></a:p></xdr:txBody></xdr:sp><xdr:clientData/></xdr:twoCellAnchor>'
             % (edit, c1[0], c1[1], r1[0], r1[1], c2[0], c2[1], r2[0], r2[1], macro, i, name, color, escape(text)))
 hdr_d = d1[:d1.index('<xdr:twoCellAnchor')]
-new_d1 = (hdr_d + button(2, 'btnUpdate', 'DownloadFromProjectWise_PWPS', 'AKTUALIZUJ DANE', (0, 47625), (0, 1900000), (2, 19050), (3, 311150), '1F7A3D') +
-          button(3, 'btnNavigator', 'ShowNavigator', 'NAWIGATOR FOLDERÓW', (0, 2000000), (0, 3900000), (2, 19050), (3, 311150), '2F5597') + tb + '</xdr:wsDr>')
+new_d1 = (hdr_d + button(2, 'btnUpdate', 'DownloadFromProjectWise_PWPS', 'UPDATE DATA', (0, 47625), (0, 1900000), (2, 19050), (3, 311150), '1F7A3D') +
+          button(3, 'btnNavigator', 'ShowNavigator', 'FOLDER NAVIGATOR', (0, 2000000), (0, 3900000), (2, 19050), (3, 311150), '2F5597') + tb + '</xdr:wsDr>')
 files['xl/drawings/drawing1.xml'] = new_d1.encode('utf-8')
-# drawing2 (Atrybuty): jeden przycisk w C3
+# drawing2 (Attributes): jeden przycisk w C3
 d2 = T('xl/drawings/drawing2.xml')
-new_d2 = d2[:d2.index('<xdr:twoCellAnchor')] + button(2, 'btnProbe', 'ZbadajAtrybutyPW', 'WYKRYJ ATRYBUTY ▶', (3, 95250), (3, 2300000), (2, 30000), (2, 400000), '2F5597') + button(3, 'btnBench', 'TestSzybkosciPW', 'TEST SZYBKOŚCI PW', (4, 95250), (4, 2300000), (2, 30000), (2, 400000), '7F7F7F') + button(4, 'btnCopyOut', 'TestPobieraniaPW', 'TEST POBIERANIA PLIKU', (5, 95250), (5, 2300000), (2, 30000), (2, 400000), '7F7F7F') + '</xdr:wsDr>'
+new_d2 = d2[:d2.index('<xdr:twoCellAnchor')] + button(2, 'btnProbe', 'ZbadajAttributesPW', 'DISCOVER ATTRIBUTES ▶', (3, 95250), (3, 2300000), (2, 30000), (2, 400000), '2F5597') + button(3, 'btnBench', 'TestSzybkosciPW', 'PW SPEED TEST', (4, 95250), (4, 2300000), (2, 30000), (2, 400000), '7F7F7F') + button(4, 'btnCopyOut', 'TestPobieraniaPW', 'TEST POBIERANIA PLIKU', (5, 95250), (5, 2300000), (2, 30000), (2, 400000), '7F7F7F') + '</xdr:wsDr>'
 files['xl/drawings/drawing2.xml'] = new_d2.encode('utf-8')
 
-# ------------------------------------------------------------------ Widoki (definicje) + Widok (wynik)
+# ------------------------------------------------------------------ Views (definicje) + Widok (wynik)
 w = Sheet()
-banner(w, 3, 'Widoki – szablony tabeli', 'Widok = które kolumny z Baza_PW i w jakiej kolejności. Wybierasz go w arkuszu Widok (komórka B3).')
+banner(w, 3, 'Views - table templates', 'A view = which PW_Data columns appear and in what order. You pick it on sheet Dashboard (cell B5).')
 for c in range(1, 4): w.put(c, 3, None, 'text')
-w.put(1, 3, 'W kolumnie B wypisz kolumny w kolejności wyświetlania, oddzielone przecinkiem: nazwami nagłówków (np. File Name, Version) albo literami kolumn Baza_PW (np. A, B, F, L, TK – można też bez przecinków: A B F L TK). Gwiazdka * = wszystkie kolumny.', 'note', ht=48); w.merge(1, 3, 3, 3)
+w.put(1, 3, 'In column B list the columns in display order, separated by commas: header names (e.g. File Name, Version) or PW_Data column letters (e.g. A, B, F, L, TK - spaces work too: A B F L TK). Asterisk * = all columns.', 'note', ht=48); w.merge(1, 3, 3, 3)
 w.put(1, 4, None, 'text', ht=6)
-w.put(1, 5, 'Nazwa widoku', 'hdr', ht=24); w.put(2, 5, 'Kolumny (kolejność = kolejność w widoku)', 'hdr'); w.put(3, 5, 'Opis', 'hdr')
-vs = [('Wszystko', '*', 'Wszystkie kolumny Baza_PW w kolejności z bazy.'),
-      ('Rewizje', 'File Name, Version, VersionSequence, WorkflowState, Updated', 'Nazwa pliku i rewizja/wersja ze stanem workflow.'),
-      ('Linki', 'File Name, PW Link, PW Source Path', 'Nazwa pliku i klikalne linki.'),
-      ('Litery (przykład)', 'A, B, F', 'Te same kolumny wskazane literami: A = File Name, B = PW Source Path, F = pierwszy atrybut.')]
+w.put(1, 5, 'View name', 'hdr', ht=24); w.put(2, 5, 'Columns (order = order in the view)', 'hdr'); w.put(3, 5, 'Description', 'hdr')
+vs = [('All', '*', 'All PW_Data columns in database order.'),
+      ('Revisions', 'File Name, Version, VersionSequence, WorkflowState, Updated', 'File name and revision/version with workflow state.'),
+      ('Links', 'File Name, PW Link, PW Source Path', 'File name and clickable links.'),
+      ('Letters (example)', 'A, B, F', 'The same columns given as letters: A = File Name, B = PW Source Path, F = first attribute.')]
 for i in range(20):
     r = 6 + i; e = vs[i] if i < len(vs) else (None, None, None)
     w.put(1, r, e[0], 'in_l', ht=22); w.put(2, r, e[1], 'in_l'); w.put(3, r, e[2], 'in_l')
 files['xl/worksheets/sheet7.xml'] = sheet_xml(w, [30, 70, 80], '7030A0', '<pane ySplit="5" topLeftCell="A6" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A6" sqref="A6"/>').encode('utf-8')
 
 v = Sheet()
-banner(v, 12, 'PW Tracker – Widok', 'Główny arkusz pracy: Baza_PW wyświetlona wg wybranego widoku. To kopia – dane pobiera makro, widoki definiujesz w arkuszu Widoki.')
-v.put(1, 3, 'Widok:', 'lab', ht=24); v.put(2, 3, 'Wszystko', 'in_l'); v.put(7, 3, 'Folder docelowy:', 'lab'); v.put(8, 3, None, 'in_l')
-v.put(1, 4, 'Szukaj:', 'lab', ht=24); v.put(2, 4, None, 'search'); v.put(3, 4, '← wpisz frazę (min. 2 znaki) – lista filtruje się od razu po dowolnej kolumnie', 'note')
+banner(v, 12, 'PW Tracker - Dashboard', 'Main working sheet: PW_Data shown according to the selected view. It is a copy - the macro downloads the data, you define views on sheet Views.')
+v.put(1, 3, 'View:', 'lab', ht=24); v.put(2, 3, 'All', 'in_l'); v.put(7, 3, 'Download to:', 'lab'); v.put(8, 3, None, 'in_l')
+v.put(1, 4, 'Search:', 'lab', ht=24); v.put(2, 4, None, 'search'); v.put(3, 4, '← type a phrase (min. 2 characters) - the list filters instantly on any column', 'note')
 v.put(1, 5, None, 'text', ht=38)
-v.put(1, 6, 'Legenda kolorów  →', 'legend', ht=20); v.put(2, 6, 'Niebieski wiersz = folder', 'sw_blue'); v.put(3, 6, 'Żółta komórka = zmiana', 'sw_yel'); v.put(4, 6, 'Czerwony wiersz = usunięty z PW', 'sw_red')
-v.put(1, 7, 'Last Database Update: – (aktualizacja jeszcze nie była uruchamiana)', 'status', ht=22)
-v.put(1, 8, 'Brak danych – wklej link w arkuszu Foldery albo kliknij AKTUALIZUJ DANE.', 'hdr', ht=24)
+v.put(1, 6, 'Colour legend  →', 'legend', ht=20); v.put(2, 6, 'Blue row = folder', 'sw_blue'); v.put(3, 6, 'Yellow cell = change', 'sw_yel'); v.put(4, 6, 'Red row = deleted from PW', 'sw_red')
+v.put(1, 7, 'Last Database Update: - (no update has been run yet)', 'status', ht=22)
+v.put(1, 8, 'No data - paste a link in sheet Folders or click UPDATE DATA.', 'hdr', ht=24)
 for cc in range(2, 7): v.put(cc, 8, None, 'hdr')
 v.merge(1, 8, 5, 8)
-v_dv = '<dataValidations count="1"><dataValidation type="list" allowBlank="0" showErrorMessage="1" errorTitle="Widok" error="Wybierz widok z listy (zdefiniowane w arkuszu Widoki)." sqref="B3"><formula1>Widoki!$A$6:$A$25</formula1></dataValidation></dataValidations>'
+v_dv = '<dataValidations count="1"><dataValidation type="list" allowBlank="0" showErrorMessage="1" errorTitle="View" error="Pick a view from the list (defined on sheet Views)." sqref="B3"><formula1>Views!$A$6:$A$25</formula1></dataValidation></dataValidations>'
 files['xl/worksheets/sheet8.xml'] = sheet_xml(v, [30, 36, 28, 40, 18, 18, 18, 18, 18, 18, 18, 18], '7030A0', '<pane ySplit="8" topLeftCell="A9" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="B3" sqref="B3"/>', dv=v_dv, gridlines=True, tail_extra='<drawing r:id="rId1"/>').replace('<sheetView ', '<sheetView tabSelected="1" ', 1).encode('utf-8')
 files['xl/worksheets/_rels/sheet8.xml.rels'] = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing3.xml"/></Relationships>'
 files['xl/drawings/drawing3.xml'] = (d2[:d2.index('<xdr:twoCellAnchor')] +
-    button(2, 'btnUpdateV', 'DownloadFromProjectWise_PWPS', 'AKTUALIZUJ DANE', (0, 47625), (0, 1950000), (4, 38100), (4, 450000), '1F7A3D', 'absolute') +
-    button(3, 'btnNavV', 'ShowNavigator', 'NAWIGATOR FOLDERÓW', (1, 47625), (1, 2250000), (4, 38100), (4, 450000), '2F5597', 'absolute') +
-    button(4, 'btnGetFiles', 'PobierzPlikiPW', 'POBIERZ PLIKI Z WIDOKU', (2, 47625), (2, 1950000), (4, 38100), (4, 450000), '7F4F00', 'absolute') + '</xdr:wsDr>').encode('utf-8')
+    button(2, 'btnUpdateV', 'DownloadFromProjectWise_PWPS', 'UPDATE DATA', (0, 47625), (0, 1950000), (4, 38100), (4, 450000), '1F7A3D', 'absolute') +
+    button(3, 'btnNavV', 'ShowNavigator', 'FOLDER NAVIGATOR', (1, 47625), (1, 2250000), (4, 38100), (4, 450000), '2F5597', 'absolute') +
+    button(4, 'btnGetFiles', 'PobierzPlikiPW', 'DOWNLOAD FROM PW', (2, 47625), (2, 1950000), (4, 38100), (4, 450000), '7F4F00', 'absolute') + '</xdr:wsDr>').encode('utf-8')
 
-# ------------------------------------------------------------------ Instrukcja (nowy arkusz)
+# ------------------------------------------------------------------ Guide (nowy arkusz)
 I = Sheet()
 W = [2, 26, 66, 66]
-banner(I, 4, 'PW → Excel  ·  Instrukcja obsługi', 'Skoroszyt pobiera listę plików i ich atrybutów z ProjectWise i pokazuje, co zmieniło się od ostatniej aktualizacji.', h1=40, h2=24)
+banner(I, 4, 'PW → Excel  ·  User guide', 'This workbook downloads the file list and attributes from ProjectWise and shows what changed since the last update.', h1=40, h2=24)
 row = [4]
 def nxt(n=1): row[0] += n
 def h2(t): nxt(); I.put(2, row[0], t, 'h2', ht=26); I.put(3, row[0], None, 'h2'); I.put(4, row[0], None, 'h2'); nxt()
@@ -293,89 +293,89 @@ def tr(c1, c2, c3, st=('cellb', 'cell', 'cell'), link=None):
     nxt()
 def th(c1, c2, c3): I.put(2, row[0], c1, 'hdr', ht=22); I.put(3, row[0], c2, 'hdr'); I.put(4, row[0], c3, 'hdr'); nxt()
 
-h2('1.  Szybki start (proces jest automatyczny)')
-th('Krok', 'Co zrobić', 'Efekt')
-tr('1. Foldery', 'Wklej link do folderu ProjectWise do kolumny B (format: patrz punkt 3). Zaloguj się w oknie PowerShell (Bentley IMS), jeśli o to poprosi.', 'Makro samo wykrywa atrybuty folderu (arkusz Diagnostyka) i dopisuje je do arkusza Atrybuty.', link='Foldery')
-tr('2. Atrybuty', 'Opcjonalnie: w kolumnie B przełącz TAK/NIE przy atrybutach, które mają (nie) trafić do bazy.', 'Tylko atrybuty z TAK stają się kolumnami.', link='Atrybuty')
-tr('3. Widok', 'Po wykryciu atrybutów dane pobierają się same. Ręcznie: przycisk „AKTUALIZUJ DANE” w arkuszu Widok. Poczekaj, aż okno PowerShell się zamknie.', 'Lista plików (każda rewizja w osobnym wierszu); zmiany podświetlone.', link='Widok')
-tr('4. Widok', 'Pracuj w arkuszu Widok: wybierz widok w B3 (np. Rewizje, Linki), szukaj w B4, „NAWIGATOR FOLDERÓW” pokazuje drzewo i skacze do pliku. Własne widoki definiujesz w arkuszu Widoki.', 'Tabela z wybranymi kolumnami w wybranej kolejności.', link='Widok')
-tr('5. Log', 'Pełna historia zmian (ADDED / CHANGED / DELETED). Każdy przebieg to osobna grupa wierszy – rozwiń plusem po lewej.', 'Ślad audytowy.', link='Log')
+h2('1.  Quick start (the process is automatic)')
+th('Step', 'What to do', 'Result')
+tr('1. Folders', 'Paste a ProjectWise folder link into column B (format: see section 3). Sign in in the PowerShell window (Bentley IMS) if asked.', 'The macro discovers the attributes of the folder (sheet Diagnostics) and appends them to sheet Attributes.', link='Folders')
+tr('2. Attributes', 'Optional: in column B switch YES/NO for attributes that should (not) go into the database.', 'Only attributes marked YES become columns.', link='Attributes')
+tr('3. Update', 'After attribute discovery the data downloads by itself. Manually: the UPDATE DATA button on sheet Dashboard. Wait until the PowerShell window closes.', 'File list (each revision in its own row); changes highlighted.', link='Dashboard')
+tr('4. Dashboard', 'Work on sheet Dashboard: pick a view in B5 (e.g. Revisions, Links), search in D5; the folder tree sits in column A (click a folder to filter). Define your own views on sheet Views.', 'A table with the chosen columns in the chosen order.', link='Dashboard')
+tr('5. Log', 'Full change history (ADDED / CHANGED / DELETED). Each run is a separate row group - expand with the plus on the left.', 'Audit trail.', link='Log')
 
-h2('2.  Arkusze – do czego służą i co w nich wpisać')
-th('Arkusz', 'Do czego służy', 'Co wpisać / uwagi')
-tr('Foldery', 'Lista folderów PW do skanowania.', 'A: TAK/NIE · B: link do folderu (pw:\\\\…) – wklejenie uruchamia automat · C: opis. Dane od wiersza 6. Błędny link podświetla się na czerwono.', link='Foldery')
-tr('Atrybuty', 'Lista atrybutów PW (uzupełnia się sama).', 'A: nazwa · B: Pobierać TAK/NIE · C: typ (ATRYBUT = atrybut projektu, SYSTEM = właściwość PW) · D: przykład · E: Twoje notatki. Nic nie jest kasowane przy kolejnym wykryciu.', link='Atrybuty')
-tr('Widoki', 'Szablony tabeli: które kolumny i w jakiej kolejności.', 'A: nazwa widoku · B: kolumny po przecinku (nazwy nagłówków lub litery, np. A, B, F, L, TK) · C: opis. Patrz punkt 5.', link='Widoki')
-tr('Baza_PW', 'BAZA – pełna lista plików z atrybutami, pogrupowana w foldery (źródło dla widoków).', 'Traktuj jak bazę danych: nie edytuj ręcznie, makro nadpisuje ją przy każdej aktualizacji. Do pracy służy arkusz Widok.', link='Baza_PW')
-tr('Widok', 'GŁÓWNY ARKUSZ PRACY: Baza_PW wyświetlona wg wybranego widoku, z przyciskami, wyszukiwaniem i legendą.', 'B3 – wybór widoku, B4 – szukaj. To kopia – odświeża się po zmianie widoku i po każdej aktualizacji danych.', link='Widok')
-tr('Diagnostyka', 'Atrybuty jednego pliku z ostatnio wykrywanego folderu.', 'Tylko do odczytu; zawartość jest kasowana przy każdym wykryciu.', link='Diagnostyka')
-tr('Log', 'Historia zmian ze wszystkich aktualizacji.', 'Tylko do odczytu. Nie usuwaj nagłówka w wierszu 1.', link='Log')
+h2('2.  Sheets - what they are for and what to enter')
+th('Arkusz', 'Purpose', 'What to enter / notes')
+tr('Folders', 'List of PW folders to scan.', 'A: YES/NO · B: folder link (pw:\\\\…) - pasting starts the automation · C: description. Data from row 6. An invalid link turns red.', link='Folders')
+tr('Attributes', 'List of PW attributes (fills itself).', 'A: name · B: Download YES/NO · C: type (ATRYBUT = project attribute, SYSTEM = PW property) · D: example · E: your notes. Nothing is deleted on the next discovery.', link='Attributes')
+tr('Views', 'Table templates: which columns and in what order.', 'A: view name · B: comma-separated columns (header names or letters, e.g. A, B, F, L, TK) · C: description. See section 5.', link='Views')
+tr('PW_Data', 'DATABASE - full file list with attributes, grouped by folder (the source for views).', 'Treat it as a database: do not edit by hand, the macro overwrites it on every update. Work on sheet Dashboard instead.', link='PW_Data')
+tr('Dashboard', 'MAIN WORKING SHEET: PW_Data shown by the selected view, with buttons, search, KPI cards and legend.', 'B5 - view, D5 - search, F5 - theme. It is a copy - refreshed when you change the view and after every data update.', link='Dashboard')
+tr('Diagnostics', 'Attributes jednego pliku z ostatnio wykrywanego folderu.', 'Read-only; its content is cleared on every discovery.', link='Diagnostics')
+tr('Log', 'Historia zmian ze wszystkich aktualizacji.', 'Read-only. Do not delete the header in row 1.', link='Log')
 
-h2('3.  Jak ma wyglądać link do folderu (arkusz Foldery, kolumna B)')
-para('Najprościej: w ProjectWise Explorer skopiuj ścieżkę folderu z paska adresu – zaczyna się od pw:\\\\. Link składa się z czterech części:')
-th('Część', 'Znaczenie', 'Przykład')
-tr('pw:\\\\', 'Prefiks – wymagany. Bez niego wiersz jest ignorowany.', 'pw:\\\\', st=('cellb', 'cell', 'mono'))
-tr('<serwer>:<Datasource>', 'Adres serwera i nazwa datasource oddzielone dwukropkiem. Makro używa tego do zalogowania.', 'pwserver.firma.local:PW_Projekty', st=('cellb', 'cell', 'mono'))
-tr('\\Documents\\', 'Stały segment korzenia. Wszystko po nim to ścieżka folderu.', '\\Documents\\', st=('cellb', 'cell', 'mono'))
-tr('<ścieżka folderu>', 'Kolejne foldery oddzielone \\. Końcowy \\ jest opcjonalny.', 'PROJ01\\04_DELIVERABLES\\03-HR\\', st=('cellb', 'cell', 'mono'))
-I.put(2, row[0], 'Pełny przykład', 'cellb', ht=34); I.put(3, row[0], 'pw:\\\\pwserver.firma.local:PW_Projekty\\Documents\\PROJ01\\04_DELIVERABLES\\03-HR\\', 'ok'); I.merge(3, row[0], 4, row[0]); I.put(4, row[0], None, 'ok'); nxt()
-th('Przykłady', 'Link', 'Ocena')
-tr('Poprawny', 'pw:\\\\pwserver.firma.local:PW_Projekty\\Documents\\PROJ01\\Deliverables\\', 'OK – pełny format.', st=('ok', 'mono', 'cell'))
-tr('Poprawny (skrót)', 'pw://PW_Projekty/Documents/PROJ01/Deliverables', 'OK – ukośniki / też działają, serwer można pominąć, jeśli datasource jest znany w ProjectWise.', st=('ok', 'mono', 'cell'))
-tr('Poprawny (z dopiskiem)', 'pw:\\\\pwserver.firma.local:PW_Projekty\\Documents\\PROJ01\\Deliverables (Working folder)', 'OK – dopisek „ (Working folder)” jest usuwany automatycznie.', st=('ok', 'mono', 'cell'))
-tr('Błędny', '\\\\fileserver\\share\\PROJ01\\Deliverables', 'To zwykła ścieżka sieciowa, nie link PW – wiersz zostanie pominięty.', st=('bad', 'mono', 'cell'))
-tr('Błędny', 'https://pwserver.firma.local/PROJ01', 'Adres WWW nie jest obsługiwany. Użyj ścieżki pw:\\\\.', st=('bad', 'mono', 'cell'))
-tr('Błędny', 'pw:\\\\pwserver.firma.local:PW_Projekty\\Documents\\', 'Brak ścieżki folderu po \\Documents\\ – nie wiadomo, co skanować.', st=('bad', 'mono', 'cell'))
+h2('3.  What a folder link looks like (sheet Folders, column B)')
+para('Easiest: in ProjectWise Explorer copy the folder path from the address bar - it starts with pw:\\\\. The link has four parts:')
+th('Part', 'Znaczenie', 'Example')
+tr('pw:\\\\', 'Prefix - required. Without it the row is ignored.', 'pw:\\\\', st=('cellb', 'cell', 'mono'))
+tr('<server>:<Datasource>', 'Server address and datasource name separated by a colon. The macro uses it to log in.', 'pwserver.firma.local:PW_Projekty', st=('cellb', 'cell', 'mono'))
+tr('\\Documents\\', 'Fixed root segment. Everything after it is the folder path.', '\\Documents\\', st=('cellb', 'cell', 'mono'))
+tr('<folder path>', 'Folders separated by \\. The trailing \\ is optional.', 'PROJ01\\04_DELIVERABLES\\03-HR\\', st=('cellb', 'cell', 'mono'))
+I.put(2, row[0], 'Full example', 'cellb', ht=34); I.put(3, row[0], 'pw:\\\\pwserver.firma.local:PW_Projekty\\Documents\\PROJ01\\04_DELIVERABLES\\03-HR\\', 'ok'); I.merge(3, row[0], 4, row[0]); I.put(4, row[0], None, 'ok'); nxt()
+th('Examples', 'Link', 'Ocena')
+tr('Valid', 'pw:\\\\pwserver.firma.local:PW_Projekty\\Documents\\PROJ01\\Deliverables\\', 'OK - full format.', st=('ok', 'mono', 'cell'))
+tr('Valid (short)', 'pw://PW_Projekty/Documents/PROJ01/Deliverables', 'OK - forward slashes work too; the server can be omitted if the datasource is known in ProjectWise.', st=('ok', 'mono', 'cell'))
+tr('Valid (with suffix)', 'pw:\\\\pwserver.firma.local:PW_Projekty\\Documents\\PROJ01\\Deliverables (Working folder)', 'OK - the " (Working folder)" suffix is removed automatically.', st=('ok', 'mono', 'cell'))
+tr('Invalid', '\\\\fileserver\\share\\PROJ01\\Deliverables', 'This is a plain network path, not a PW link - the row is skipped.', st=('bad', 'mono', 'cell'))
+tr('Invalid', 'https://pwserver.firma.local/PROJ01', 'A web address is not supported. Use a pw: path\\\\.', st=('bad', 'mono', 'cell'))
+tr('Invalid', 'pw:\\\\pwserver.firma.local:PW_Projekty\\Documents\\', 'No folder path after \\Documents\\ - nothing to scan.', st=('bad', 'mono', 'cell'))
 
-h2('4.  Kolumny w arkuszu Baza_PW')
-th('Kolumna', 'Znaczenie', 'Jak wygląda')
+h2('4.  Kolumny w arkuszu PW_Data')
+th('Kolumna', 'Znaczenie', 'What it looks like')
 tr('File Name', 'Nazwa pliku w ProjectWise.', 'PROJ01-STR-0001_Plan.dwg', st=('cellb', 'cell', 'mono'))
-tr('PW Source Path', 'Folder pliku liczony od \\Documents\\. Wiersz folderu (niebieski) ma tę kolumnę pustą.', 'PROJ01\\04_DELIVERABLES\\03-HR', st=('cellb', 'cell', 'mono'))
-tr('PW Link', 'Klikalny link do dokumentu – otwiera go w ProjectWise Explorer (musi być zainstalowany). W wierszu folderu jest tu link „Open folder in PW”. Link jest też kluczem, po którym makro rozpoznaje plik – nie edytuj go.', 'pw://pwserver.firma.local:PW_Projekty/Documents/D:{3F2A1B4C-0000-0000-0000-000000000000}', st=('cellb', 'cell', 'mono'))
-tr('Updater', 'Kto ostatnio zmienił plik w PW.', 'Jan Kowalski', st=('cellb', 'cell', 'mono'))
+tr('PW Source Path', 'The folder of the file, counted from \\Documents\\. The folder row (blue) has this column empty.', 'PROJ01\\04_DELIVERABLES\\03-HR', st=('cellb', 'cell', 'mono'))
+tr('PW Link', 'Clickable document link - opens it in ProjectWise Explorer (must be installed). On a folder row this is the "Open folder in PW" link. The link is also the key the macro uses to recognise the file - do not edit it.', 'pw://pwserver.firma.local:PW_Projekty/Documents/D:{3F2A1B4C-0000-0000-0000-000000000000}', st=('cellb', 'cell', 'mono'))
+tr('Updater', 'Who last changed the file in PW.', 'Jan Kowalski', st=('cellb', 'cell', 'mono'))
 tr('Updated', 'Data ostatniej zmiany, format RRRR-MM-DD.', '2026-05-27', st=('cellb', 'cell', 'mono'))
-tr('F, G, H …', 'Atrybuty z arkusza Atrybuty – w tej samej kolejności.', 'np. Version = 3', st=('cellb', 'cell', 'mono'))
+tr('F, G, H …', 'Attributes from sheet Attributes - in the same order.', 'np. Version = 3', st=('cellb', 'cell', 'mono'))
 
-h2('5.  Widoki – jak zdefiniować tabelę')
-para('Arkusz Widoki: jeden wiersz = jeden widok. W kolumnie B wypisz kolumny Baza_PW w takiej kolejności, w jakiej mają się pokazać. Możesz użyć nazw nagłówków albo liter kolumn (litery zależą od kolejności atrybutów, nazwy są trwalsze).')
-th('Nazwa widoku', 'Kolumny (kolumna B w arkuszu Widoki)', 'Efekt')
-tr('Rewizje', 'File Name, Version, VersionSequence, WorkflowState, Updated', 'Nazwa pliku, rewizja, numer wersji, stan i data – w tej kolejności.', st=('cellb', 'mono', 'cell'))
-tr('Linki', 'File Name, PW Link, PW Source Path', 'Nazwa, klikalny link i folder.', st=('cellb', 'mono', 'cell'))
-tr('Litery', 'A, B, F, L, TK   (albo: A B F L TK)', 'Kolumny Baza_PW wskazane literami, w podanej kolejności.', st=('cellb', 'mono', 'cell'))
+h2('5.  Views - how to define a table')
+para('Sheet Views: one row = one view. In column B list the PW_Data columns in the order they should appear. You can use header names or column letters (letters depend on the attribute order, names are more stable).')
+th('View name', 'Kolumny (kolumna B w arkuszu Views)', 'Efekt')
+tr('Revisions', 'File Name, Version, VersionSequence, WorkflowState, Updated', 'File name, revision, version number, state and date - in that order.', st=('cellb', 'mono', 'cell'))
+tr('Links', 'File Name, PW Link, PW Source Path', 'Name, clickable link and folder.', st=('cellb', 'mono', 'cell'))
+tr('Litery', 'A, B, F, L, TK   (albo: A B F L TK)', 'PW_Data columns given as letters, in the given order.', st=('cellb', 'mono', 'cell'))
 tr('Wszystko', '*', 'Wszystkie kolumny.', st=('cellb', 'mono', 'cell'))
-para('Widok wybierasz w arkuszu Widok (B3). Jeśli któraś nazwa/litera nie istnieje, arkusz Widok pokaże ją w komórce D4.', 'note')
+para('You pick the view on sheet Dashboard (B5). If a name/letter does not exist, the Dashboard shows it as a warning under the title.', 'note')
 
 h2('6.  Kolory i oznaczenia')
-th('Oznaczenie', 'Znaczenie', 'Co robi makro')
-I.put(2, row[0], 'Niebieski wiersz', 'sw_blue', ht=24); I.put(3, row[0], 'Folder – nagłówek grupy plików.', 'cell'); I.put(4, row[0], 'Dodaje przy pierwszym pliku z nowego folderu.', 'cell'); nxt()
-I.put(2, row[0], 'Żółta komórka', 'sw_yel', ht=36); I.put(3, row[0], 'Wartość zmieniła się od ostatniej aktualizacji. Najedź na komórkę – komentarz pokazuje starą wartość, datę i osobę.', 'cell'); I.put(4, row[0], 'Nadpisuje wartość nową i dopisuje komentarz. Wpis CHANGED w Log.', 'cell'); nxt()
-I.put(2, row[0], 'Czerwony, przekreślony wiersz', 'sw_red', ht=36); I.put(3, row[0], 'Plik zniknął z ProjectWise (w skanowanym folderze).', 'cell'); I.put(4, row[0], 'Zaznacza wiersz, nie kasuje go. Jeśli plik wróci – kolor znika. Wpis DELETED w Log.', 'cell'); nxt()
-I.put(2, row[0], 'Biały wiersz', 'sw_white', ht=24); I.put(3, row[0], 'Bez zmian.', 'cell'); I.put(4, row[0], '–', 'cell'); nxt()
+th('Oznaczenie', 'Znaczenie', 'What the macro does')
+I.put(2, row[0], 'Niebieski wiersz', 'sw_blue', ht=24); I.put(3, row[0], 'Folder - header of a file group.', 'cell'); I.put(4, row[0], 'Dodaje przy pierwszym pliku z nowego folderu.', 'cell'); nxt()
+I.put(2, row[0], 'Yellow cell', 'sw_yel', ht=36); I.put(3, row[0], 'The value changed since the last update. Hover over the cell - the comment shows the old value, date and person.', 'cell'); I.put(4, row[0], 'Overwrites the value and adds a comment. A CHANGED entry in Log.', 'cell'); nxt()
+I.put(2, row[0], 'Red, struck-through row', 'sw_red', ht=36); I.put(3, row[0], 'The file disappeared from ProjectWise (in a scanned folder).', 'cell'); I.put(4, row[0], 'Marks the row, does not delete it. If the file comes back the colour disappears. A DELETED entry in Log.', 'cell'); nxt()
+I.put(2, row[0], 'White row', 'sw_white', ht=24); I.put(3, row[0], 'Bez zmian.', 'cell'); I.put(4, row[0], '–', 'cell'); nxt()
 
 h2('7.  Wymagania')
-for t in ['Windows + Excel z włączonymi makrami (plik .xlsm zapisany na dysku, nie otwarty z załącznika e-mail).',
-          'Zainstalowany moduł PowerShell PWPS_DAB (Bentley) oraz dostęp do serwera ProjectWise; logowanie przez Bentley IMS.',
-          'Makro tworzy obok skoroszytu pliki tymczasowe: PW_Folders.txt, PW_GetFiles.ps1, PW_Output.csv, PW_Structure_Log.txt. Po aktualizacji zapyta, czy je usunąć.']:
+for t in ['Windows + Excel with macros enabled (.xlsm saved on disk, not opened from an e-mail attachment).',
+          'PowerShell module PWPS_DAB (Bentley) installed and access to the ProjectWise server; sign-in via Bentley IMS.',
+          'The macro creates temporary files next to the workbook: PW_Folders.txt, PW_GetFiles.ps1, PW_Output.csv, PW_Structure_Log.txt. They are overwritten on the next update.']:
     para('•  ' + t)
 
-h2('8.  Rozwiązywanie problemów')
-th('Objaw', 'Przyczyna', 'Co zrobić')
-tr('W Log: WARNING „Scope not scanned”', 'Nie udało się zalogować lub znaleźć folderu.', 'Sprawdź link w arkuszu Foldery i logowanie do PW. Pliki tego folderu NIE zostały oznaczone jako usunięte.')
-tr('Okno PowerShell: FOLDER NOT FOUND', 'Zła ścieżka lub brak uprawnień do folderu.', 'Skopiuj link ponownie z ProjectWise Explorer.')
-tr('Kolumna atrybutu jest pusta', 'Nazwa atrybutu nie istnieje w tym folderze albo ma inną pisownię.', 'Sprawdź nazwę w arkuszu Diagnostyka / Atrybuty; atrybuty zależą od folderu i klasy dokumentu.')
-tr('„Please save the Excel workbook…”', 'Plik nie jest zapisany na dysku.', 'Zapisz skoroszyt w zwykłym folderze i uruchom ponownie.')
-tr('Pobieranie trwa bardzo długo', 'Czas zjada serwer PW (pobieranie atrybutów i rewizji), nie Excel.', 'Arkusz Atrybuty → „TEST SZYBKOŚCI PW”: porównuje sposoby pobierania i zapisuje czasy w arkuszu Test_PW. Mniej czasu daje też wyłączenie rewizji (GET_ALL_VERSIONS w modConfig).')
-tr('Makra nie działają', 'Plik zablokowany po pobraniu.', 'Właściwości pliku → Odblokuj; w Excelu włącz zawartość (makra).')
+h2('8.  Troubleshooting')
+th('Objaw', 'Przyczyna', 'What to do')
+tr('W Log: WARNING „Scope not scanned”', 'Could not log in or find the folder.', 'Check the link on sheet Folders and your PW login. Files of this folder were NOT marked as deleted.')
+tr('Okno PowerShell: FOLDER NOT FOUND', 'Wrong path or no permission for the folder.', 'Skopiuj link ponownie z ProjectWise Explorer.')
+tr('Kolumna atrybutu jest pusta', 'The attribute name does not exist in this folder or is spelled differently.', 'Check the name on sheet Diagnostics / Attributes; attributes depend on the folder and document class.')
+tr('„Please save the Excel workbook…”', 'Plik nie jest zapisany na dysku.', 'Save the workbook in a normal folder and run again.')
+tr('The download takes very long', 'The PW server (attributes and revisions) takes the time, not Excel.', 'Sheet Attributes → "PW SPEED TEST": compares download methods and writes timings to sheet Test_PW. Disabling revisions (GET_ALL_VERSIONS in modConfig) also saves time.')
+tr('Macros do not run', 'Plik zablokowany po pobraniu.', 'File properties → Unblock; in Excel enable content (macros).')
 I.merge(2, 3, 4, 3)
-I.put(2, 3, 'Wersja skoroszytu: V1.6  ·  Wystarczy wkleić link w arkuszu Foldery – resztę robi makro. Własne ustawienia: Atrybuty (TAK/NIE) i Widoki.', 'note', ht=22)
+I.put(2, 3, 'Workbook version: V1.7  ·  Paste a PW folder link in sheet Folders - the macro does the rest. Settings: Attributes (YES/NO) and Views.', 'note', ht=22)
 I.put(3, 3, None, 'note'); I.put(4, 3, None, 'note')
 files['xl/worksheets/sheet6.xml'] = sheet_xml(I, W, '1F3864', '<selection activeCell="B6" sqref="B6"/>', landscape=False).encode('utf-8')
 
 # ------------------------------------------------------------------ workbook-level
 wb = T('xl/workbook.xml')
 wb = re.sub(r'<sheets>.*?</sheets>',
-            '<sheets><sheet name="Widok" sheetId="11" r:id="rId13"/><sheet name="Instrukcja" sheetId="9" r:id="rId11"/><sheet name="Foldery" sheetId="2" r:id="rId2"/><sheet name="Atrybuty" sheetId="3" r:id="rId3"/><sheet name="Widoki" sheetId="10" r:id="rId12"/>'
-            '<sheet name="Baza_PW" sheetId="8" r:id="rId1"/><sheet name="Diagnostyka" sheetId="4" r:id="rId4"/><sheet name="Log" sheetId="7" r:id="rId5"/></sheets>', wb, flags=re.S)
+            '<sheets><sheet name="Dashboard" sheetId="11" r:id="rId13"/><sheet name="Guide" sheetId="9" r:id="rId11"/><sheet name="Folders" sheetId="2" r:id="rId2"/><sheet name="Attributes" sheetId="3" r:id="rId3"/><sheet name="Views" sheetId="10" r:id="rId12"/>'
+            '<sheet name="PW_Data" sheetId="8" r:id="rId1"/><sheet name="Diagnostics" sheetId="4" r:id="rId4"/><sheet name="Log" sheetId="7" r:id="rId5"/></sheets>', wb, flags=re.S)
 wb = wb.replace('activeTab="3"', 'activeTab="0"')
 files['xl/workbook.xml'] = wb.encode('utf-8')
 rels = T('xl/_rels/workbook.xml.rels')
@@ -390,7 +390,7 @@ files['[Content_Types].xml'] = ct.encode('utf-8')
 del files['xl/calcChain.xml']
 app = T('docProps/app.xml')
 app = app.replace('<vt:i4>5</vt:i4>', '<vt:i4>8</vt:i4>')
-app = re.sub(r'<TitlesOfParts>.*?</TitlesOfParts>', '<TitlesOfParts><vt:vector size="8" baseType="lpstr"><vt:lpstr>Widok</vt:lpstr><vt:lpstr>Instrukcja</vt:lpstr><vt:lpstr>Foldery</vt:lpstr><vt:lpstr>Atrybuty</vt:lpstr><vt:lpstr>Widoki</vt:lpstr><vt:lpstr>Baza_PW</vt:lpstr><vt:lpstr>Diagnostyka</vt:lpstr><vt:lpstr>Log</vt:lpstr></vt:vector></TitlesOfParts>', app, flags=re.S)
+app = re.sub(r'<TitlesOfParts>.*?</TitlesOfParts>', '<TitlesOfParts><vt:vector size="8" baseType="lpstr"><vt:lpstr>Dashboard</vt:lpstr><vt:lpstr>Guide</vt:lpstr><vt:lpstr>Folders</vt:lpstr><vt:lpstr>Attributes</vt:lpstr><vt:lpstr>Views</vt:lpstr><vt:lpstr>PW_Data</vt:lpstr><vt:lpstr>Diagnostics</vt:lpstr><vt:lpstr>Log</vt:lpstr></vt:vector></TitlesOfParts>', app, flags=re.S)
 files['docProps/app.xml'] = app.encode('utf-8')
 
 with zipfile.ZipFile(DST, 'w', zipfile.ZIP_DEFLATED) as z:

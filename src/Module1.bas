@@ -85,7 +85,7 @@ Private Sub RunDownload()                           ' Właściwa logika orkiestr
         Dim fr As Long, flnk As String              ' Brak atrybutow - wykryj je z pierwszego aktywnego folderu
         For fr = FOLDERS_FIRST_ROW To ws2.Cells(ws2.Rows.Count, FOLDERS_LINK_COL).End(xlUp).Row
             flnk = Trim(CStr(ws2.Cells(fr, FOLDERS_LINK_COL).Value))
-            If UCase(Left(flnk, 3)) = "PW:" And UCase(Trim(CStr(ws2.Cells(fr, FOLDERS_ACTIVE_COL).Value))) <> "NIE" Then
+            If UCase(Left(flnk, 3)) = "PW:" And Not IsNo(ws2.Cells(fr, FOLDERS_ACTIVE_COL).Value) Then
                 DiscoverAttributes flnk, True
                 Exit For
             End If
@@ -292,7 +292,7 @@ Private Function GetAttributesFromSheet3() As String ' Deklaracja funkcji zwraca
     
     For i = ATTRS_FIRST_ROW To lastRow               ' Pętla po wierszach z atrybutami
         attrName = Trim(ws3.Cells(i, 1).Value)      ' Pobranie nazwy atrybutu z komórki i usunięcie zbędnych spacji
-        If UCase(Trim(CStr(ws3.Cells(i, ATTRS_ENABLE_COL).Value))) = "NIE" Then attrName = "" ' atrybut wylaczony w arkuszu Atrybuty
+        If IsNo(ws3.Cells(i, ATTRS_ENABLE_COL).Value) Then attrName = "" ' atrybut wylaczony w arkuszu Atrybuty
         If attrName <> "" Then                      ' Sprawdzenie czy komórka nie była pusta
             psArray = psArray & "'" & attrName & "'," ' Doklejenie atrybutu w apostrofach i przecinka do stringu
             count = count + 1                       ' Zwiększenie licznika dodanych atrybutów
@@ -319,7 +319,7 @@ Private Function GetCustomAttributesPS() As String
     For i = ATTRS_FIRST_ROW To lastRow
         nm = Trim(CStr(ws3.Cells(i, 1).Value))
         typ = UCase(Trim(CStr(ws3.Cells(i, ATTRS_TYPE_COL).Value)))
-        If nm <> "" And UCase(Trim(CStr(ws3.Cells(i, ATTRS_ENABLE_COL).Value))) <> "NIE" Then
+        If nm <> "" And Not IsNo(ws3.Cells(i, ATTRS_ENABLE_COL).Value) Then
             If typ = "ATRYBUT" Or (typ = "" And InStr(1, "," & ATTRS_SYSTEM_DEFAULTS & ",", "," & nm & ",", vbTextCompare) = 0) Then
                 res = res & "'" & Replace(nm, "'", "''") & "',"
             End If
@@ -415,7 +415,7 @@ Private Function PrepareScopesAndTxtFile(ws2 As Worksheet, txtPath As String, By
     
     For i = FOLDERS_FIRST_ROW To lastRow            ' Pętla po wierszach arkusza Foldery
         rawLink = Trim(ws2.Cells(i, FOLDERS_LINK_COL).Value)
-        If UCase(Trim(CStr(ws2.Cells(i, FOLDERS_ACTIVE_COL).Value))) = "NIE" Then rawLink = "" ' Wiersz wyłączony przez użytkownika (Aktywny = NIE)       ' Pobranie i oczyszczenie linku ze spacji wiodących
+        If IsNo(ws2.Cells(i, FOLDERS_ACTIVE_COL).Value) Then rawLink = "" ' Wiersz wyłączony przez użytkownika (Aktywny = NIE)       ' Pobranie i oczyszczenie linku ze spacji wiodących
         If rawLink <> "" Then                       ' Przetwarzaj tylko, jeśli link nie jest pusty
             Dim normalizedLink As String            ' Zmienna pomocnicza na link ze spójnymi ukośnikami
             normalizedLink = Replace(rawLink, "/", "\") ' Zamiana ukośników w prawo na ukośniki w lewo (format Windows)
@@ -1172,7 +1172,7 @@ Sub CopyHeadersFromSheet3()
     
     cCol = START_COL_S1
     For r = ATTRS_FIRST_ROW To lastRow3
-        If Trim(CStr(ws3.Cells(r, 1).Value)) <> "" And UCase(Trim(CStr(ws3.Cells(r, ATTRS_ENABLE_COL).Value))) <> "NIE" Then ' Puste wiersze są pomijane - tak samo jak w GetAttributesFromSheet3, więc kolejność kolumn zgadza się z CSV
+        If Trim(CStr(ws3.Cells(r, 1).Value)) <> "" And Not IsNo(ws3.Cells(r, ATTRS_ENABLE_COL).Value) Then ' Puste wiersze są pomijane - tak samo jak w GetAttributesFromSheet3, więc kolejność kolumn zgadza się z CSV
             ws1.Cells(11, cCol).Value = Trim(CStr(ws3.Cells(r, 1).Value))
             StyleHeader ws1.Cells(11, cCol)
             cCol = cCol + 1

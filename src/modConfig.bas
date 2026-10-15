@@ -68,3 +68,10 @@ Public Sub Notify(ByVal msg As String)
     Application.StatusBar = Left(Replace(msg, vbCrLf, " "), 250)
     Debug.Print msg
 End Sub
+
+' Wartosc wylaczona w kolumnach YES/NO (akceptuje tez stare polskie NIE)
+Public Function IsNo(ByVal v As Variant) As Boolean
+    Dim t As String
+    t = UCase(Trim(CStr(v)))
+    IsNo = (t = "NO" Or t = "NIE")
+End Function

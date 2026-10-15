@@ -207,6 +207,8 @@ Public Sub StyleDashboard(wsV As Worksheet, ByVal lastR As Long, ByVal lastC As 
     End If
     
     ' --- naglowek tabeli ---
+    wsV.Range(wsV.Cells(VIEW_HEADER_ROW, 1), wsV.Cells(VIEW_HEADER_ROW, lastC)).UnMerge
+    If lastR <= VIEW_HEADER_ROW Then wsV.Range(wsV.Cells(VIEW_HEADER_ROW, 2), wsV.Cells(VIEW_HEADER_ROW, lastC)).ClearContents
     With wsV.Range(wsV.Cells(VIEW_HEADER_ROW, 1), wsV.Cells(VIEW_HEADER_ROW, lastC))
         .Interior.Color = t.hdrBg: .Font.Color = t.hdrFg: .Font.Bold = True: .Font.Name = "Segoe UI": .Font.Size = 10
         .VerticalAlignment = xlCenter
