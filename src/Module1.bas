@@ -209,6 +209,7 @@ Private Sub RunFinish()
     wsLog.Columns("A:G").AutoFit                    ' Automatyczne dopasowanie szerokości kolumn w arkuszu logów
     On Error Resume Next
     ThisWorkbook.Sheets(SH_VIEW).Activate           ' Glowny arkusz pracy to Widok
+    RefreshNavigator                                ' drzewo nawigatora od nowa z zaktualizowanej bazy
     On Error GoTo 0
     Notify "Update completed. Data merged." ' Wyświetlenie okna z komunikatem sukcesu
 End Sub

@@ -89,10 +89,11 @@ Public Sub DockToView()
     py1 = pBot.PointsToScreenPixelsY(vr.Top + vr.Height)
     sc = (pBot.PointsToScreenPixelsY(vr.Top + 100) - py0) / 100         ' piksele na punkt arkusza (DPI * zoom)
     Dim x1 As Double, x2 As Double, y1 As Double, y2 As Double
-    x2 = px0
-    x1 = x2 - (ws.Columns(3).Left - ws.Columns(1).Left) * sc            ' nawigator zajmuje kolumny A i B
+    x1 = px0 - (ws.Columns(3).Left - ws.Columns(1).Left) * sc            ' lewa krawedz zamrozonych kolumn A:B
+    x2 = x1 + (ws.Columns(2).Left - ws.Columns(1).Left) * sc             ' nawigator ma szerokosc kolumny A
     y1 = py0 - (ws.Rows(VIEW_HEADER_ROW + 1).Top - ws.Rows(VIEW_HEADER_ROW).Top) * sc   ' od wiersza naglowka tabeli
-    y2 = py1 - 40                                                      ' zapas na poziomy pasek przewijania i zakladki
+    y1 = y1 + 14                                                       ' korekta ramki okna
+    y2 = py1 - 5                                                       ' nawigator siega do paska zakladek
     If x2 - x1 < 150 Then x2 = x1 + 300
     If y2 - y1 < 200 Then y2 = y1 + 400                                 ' zabezpieczenie przed spłaszczeniem
     If y1 <= 0 Then y1 = 100

@@ -382,3 +382,16 @@ Public Sub ChooseTargetFolder()
     End With
     DrawHeader ws
 End Sub
+
+' Przebudowuje nawigator od nowa (drzewo z aktualnej bazy) - po aktualizacji danych
+Public Sub RefreshNavigator()
+    Dim uf As Object
+    On Error Resume Next
+    For Each uf In VBA.UserForms
+        If uf.Name = "frmNavigator" Then Unload uf: Exit For
+    Next uf
+    If ActiveSheet.Name = SH_VIEW Then
+        frmNavigator.Show 0
+        frmNavigator.DockToView
+    End If
+End Sub
