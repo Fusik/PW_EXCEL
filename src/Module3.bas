@@ -18,7 +18,7 @@ Sub ZbadajAtrybutyPW()
             Exit Sub
         End If
     Next r
-    Notify "Brak aktywnego linku w arkuszu " & SH_FOLDERS & " (kolumna B). Wklej link do folderu PW."
+    Notify "No active link in sheet " & SH_FOLDERS & " (column B). Paste a PW folder link."
 End Sub
 
 ' Wywolywane po wklejeniu/zmianie linku w kolumnie B arkusza Foldery: wykryj atrybuty, potem pobierz dane
@@ -27,7 +27,7 @@ Public Sub OnFolderLinkPasted(ByVal Target As Range)
     If busy Then Exit Sub
     If Target.Cells.Count > 20 Then Exit Sub        ' ochrona przed kasowaniem/wklejaniem calych kolumn
     If DownloadBusy() Then                          ' trwa pobieranie w tle - nie startuj kolejnego
-        Notify "Pobieranie z ProjectWise juz trwa w tle. Po jego zakonczeniu kliknij AKTUALIZUJ DANE, aby objac nowy link."
+        Notify "A ProjectWise download is already running. When it finishes, click UPDATE DATA to include the new link."
         Exit Sub
     End If
     busy = True
@@ -47,7 +47,7 @@ Public Sub OnFolderLinkPasted(ByVal Target As Range)
 Fail:
     Application.EnableEvents = True
     busy = False
-    Notify "Blad automatu po wklejeniu linku: " & Err.Description
+    Notify "Error in the paste-link automation: " & Err.Description
 End Sub
 
 Public Function DiscoverAttributes(ByVal folderLink As String, Optional ByVal quiet As Boolean = False) As Boolean
@@ -57,7 +57,7 @@ Public Function DiscoverAttributes(ByVal folderLink As String, Optional ByVal qu
     Dim r As Long, cols() As String, cleanRow As String
     
     If ThisWorkbook.Path = "" Then
-        Notify "Zapisz najpierw plik Excel na dysku!"
+        Notify "Save the Excel workbook to disk first."
         Exit Function
     End If
     
@@ -68,7 +68,7 @@ Public Function DiscoverAttributes(ByVal folderLink As String, Optional ByVal qu
     
     Dim dsName As String, fp As String
     If Not ParseFolderLink(folderLink, dsName, fp) Then
-        Notify "Nie rozpoznano linku folderu. Oczekiwany format: pw:\\serwer:Datasource\Documents\Projekt\Folder\ (zobacz arkusz Instrukcja)."
+        Notify "Folder link not recognised. Expected format: pw:\\server:Datasource\Documents\Project\Folder\ (see sheet Guide)."
         Exit Function
     End If
     On Error Resume Next
@@ -177,10 +177,10 @@ Public Function DiscoverAttributes(ByVal folderLink As String, Optional ByVal qu
         DiscoverAttributes = True
         If Not quiet Then
             wsDiag.Activate
-            Notify "Gotowe. Dopisano " & added & " nowych atrybutow do arkusza " & SH_ATTRS & "."
+            Notify "Done. Added " & added & " new attributes to sheet " & SH_ATTRS & "."
         End If
     Else
-        Notify "Nie udalo sie wykryc atrybutow. Sprawdz okno PowerShell i link folderu."
+        Notify "Could not discover attributes. Check the PowerShell window and the folder link."
     End If
     
     On Error Resume Next

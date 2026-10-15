@@ -57,7 +57,7 @@ try {
     if ($fc) { $vbp.VBComponents.Remove($fc) }
     $fc = $vbp.VBComponents.Add(3)
     $fc.Name = 'frmPobierz'
-    $fc.Properties.Item('Caption').Value = 'Pobieranie plikow z ProjectWise'
+    $fc.Properties.Item('Caption').Value = 'Download from ProjectWise'
     $fc.Properties.Item('Width').Value = 520
     $fc.Properties.Item('Height').Value = 420
     function Add-Ctl($type, $name, $l, $t, $w, $h, $cap) {
@@ -66,14 +66,14 @@ try {
         if ($cap) { $c.Caption = $cap }
         return $c
     }
-    [void](Add-Ctl 'Forms.Label.1' 'lblInfo' 8 6 490 16 'Wklej linki PW (pw://...), po jednym w wierszu:')
+    [void](Add-Ctl 'Forms.Label.1' 'lblInfo' 8 6 490 16 'Paste PW links (pw://...), one per line:')
     $tl = Add-Ctl 'Forms.TextBox.1' 'txtLinks' 8 24 490 250 $null
     $tl.MultiLine = $true; $tl.ScrollBars = 3; $tl.EnterKeyBehavior = $true; $tl.WordWrap = $false
-    [void](Add-Ctl 'Forms.Label.1' 'lblFolder' 8 282 490 16 'Folder docelowy (np. D:\PW_pliki):')
+    [void](Add-Ctl 'Forms.Label.1' 'lblFolder' 8 282 490 16 'Target folder (e.g. D:\PW_files):')
     [void](Add-Ctl 'Forms.TextBox.1' 'txtFolder' 8 300 490 20 $null)
-    [void](Add-Ctl 'Forms.CommandButton.1' 'btnSel' 8 332 200 28 'Wklej linki z zaznaczenia w Widoku')
-    [void](Add-Ctl 'Forms.CommandButton.1' 'btnStart' 330 332 80 28 'POBIERZ')
-    [void](Add-Ctl 'Forms.CommandButton.1' 'btnClose' 418 332 80 28 'Zamknij')
+    [void](Add-Ctl 'Forms.CommandButton.1' 'btnSel' 8 332 200 28 'Paste links from Dashboard selection')
+    [void](Add-Ctl 'Forms.CommandButton.1' 'btnStart' 330 332 80 28 'DOWNLOAD')
+    [void](Add-Ctl 'Forms.CommandButton.1' 'btnClose' 418 332 80 28 'Close')
     $fcode = (Read-Src 'frmPobierz.frm') -split "`r`n" | Where-Object { $_ -notmatch '^Attribute VB_' }
     $fc.CodeModule.AddFromString(($fcode -join "`r`n"))
     $build = (Select-String -Path (Join-Path $PSScriptRoot 'src\modConfig.bas') -Pattern 'BUILD_ID As String = "([^"]+)"').Matches[0].Groups[1].Value

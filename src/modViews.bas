@@ -21,13 +21,18 @@ Public Sub BuildView()
     Set wsDef = ThisWorkbook.Sheets(SH_VIEWS)
     
     viewName = Trim(CStr(wsV.Range(VIEW_SELECTOR).Value))
+    If viewName = "" Then                           ' pierwsze uruchomienie nowego ukladu: przejmij wybor ze starej komorki B3 albo pierwszy widok
+        viewName = Trim(CStr(wsV.Range("B3").Value))
+        If viewName = "" Or viewName = "Light" Then viewName = Trim(CStr(wsDef.Cells(VIEWS_FIRST_ROW, 1).Value))
+        wsV.Range(VIEW_SELECTOR).Value = viewName
+    End If
     If viewName = "" Then Exit Sub
     lastDef = wsDef.Cells(wsDef.Rows.Count, 1).End(xlUp).Row
     For r = VIEWS_FIRST_ROW To lastDef
         If StrComp(Trim(CStr(wsDef.Cells(r, 1).Value)), viewName, vbTextCompare) = 0 Then defRow = r: Exit For
     Next r
     If defRow = 0 Then
-        Notify "Nie ma widoku '" & viewName & "' w arkuszu " & SH_VIEWS & "."
+        Notify "View '" & viewName & "' does not exist in sheet " & SH_VIEWS & "."
         Exit Sub
     End If
     spec = Trim(CStr(wsDef.Cells(defRow, 2).Value))
@@ -88,12 +93,10 @@ Public Sub BuildView()
         BuildTree wsV, wsD, lastR
     End If
     stp = "motyw"
-    StyleDashboard wsV, lastR - DATA_HEADER_ROW + VIEW_HEADER_ROW, n + 1
-    stp = "opis"
-    wsV.Range("D3").Value = "Kolumn: " & n & "  |  Wierszy: " & IIf(lastR > DATA_HEADER_ROW, lastR - DATA_HEADER_ROW, 0) & "  |  Odswiezono: " & Format(Now, "yyyy-mm-dd hh:nn")
-    wsV.Range("D4").Value = ""
-    If missing <> "" Then wsV.Range("D4").Value = "Nie znaleziono kolumn: " & Left(missing, Len(missing) - 2)
-    wsV.Range("A7").Value = CStr(wsD.Range("A8").Value)    ' status ostatniej aktualizacji z Baza_PW
+    Dim subT As String, warnT As String
+    subT = n & " columns   |   " & IIf(lastR > DATA_HEADER_ROW, lastR - DATA_HEADER_ROW, 0) & " rows   |   view refreshed " & Format(Now, "yyyy-mm-dd hh:nn")
+    If missing <> "" Then warnT = "Columns not found: " & Left(missing, Len(missing) - 2)
+    StyleDashboard wsV, lastR - DATA_HEADER_ROW + VIEW_HEADER_ROW, n + 1, subT, warnT, CStr(wsD.Range("A8").Value)
     stp = "filtr"
     FilterRows wsV, VIEW_HEADER_ROW, CStr(wsV.Range(VIEW_SEARCH).Value)   ' zachowaj aktywne wyszukiwanie
     If Len(Trim(CStr(wsV.Range(VIEW_SEARCH).Value))) < 2 Then CollapseFiles wsV
@@ -129,7 +132,7 @@ Private Sub BuildTree(wsV As Worksheet, wsD As Worksheet, ByVal lastR As Long)
         End If
     Next r
     With wsV.Cells(VIEW_HEADER_ROW, 1)
-        .Value = "Drzewo folderow"
+        .Value = "FOLDER TREE"
         .Interior.Color = CLR_HEADER: .Font.Color = CLR_WHITE: .Font.Bold = True
     End With
     wsV.Columns(1).ColumnWidth = 44

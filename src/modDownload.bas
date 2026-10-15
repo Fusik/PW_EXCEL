@@ -18,7 +18,7 @@ Public Function LinksFromSelection() As String
     For c = 1 To lastC
         If StrComp(Trim(CStr(wsV.Cells(VIEW_HEADER_ROW, c).Value)), "PW Link", vbTextCompare) = 0 Then linkCol = c: Exit For
     Next c
-    If linkCol = 0 Then Notify "Widok nie ma kolumny 'PW Link' - dodaj ja do widoku (arkusz Widoki).": Exit Function
+    If linkCol = 0 Then Notify "The view has no 'PW Link' column - add it to the view (sheet Views).": Exit Function
     Dim multi As Boolean, folderSel As Boolean, inSel As Boolean, skipHidden As Boolean, lastR As Long
     lastR = wsV.UsedRange.Row + wsV.UsedRange.Rows.Count - 1
     multi = (ActiveSheet.Name = SH_VIEW And Selection.Rows.Count > 1)
@@ -46,14 +46,14 @@ Public Sub StartPobieranie(ByVal linksText As String, ByVal target As String)
         If UCase(Left(t, 3)) = "PW:" Then lst.Add t
     Next ln
     target = Trim(target)
-    If lst.Count = 0 Then Notify "Brak linkow PW (pw://...) na liscie.": Exit Sub
-    If target = "" Then Notify "Podaj folder docelowy.": Exit Sub
-    If ThisWorkbook.Path = "" Then Notify "Zapisz najpierw plik na dysku": Exit Sub
-    ThisWorkbook.Sheets(SH_VIEW).Range("H3").Value = target
+    If lst.Count = 0 Then Notify "No PW links (pw://...) in the list.": Exit Sub
+    If target = "" Then Notify "Enter the target folder.": Exit Sub
+    If ThisWorkbook.Path = "" Then Notify "Save the workbook to disk first": Exit Sub
+    ThisWorkbook.Sheets(SH_VIEW).Range(TARGET_CELL).Value = target
     
-    If MsgBox("Pobrac " & lst.Count & " plik(ow) do:" & vbCrLf & target & vbCrLf & vbCrLf & _
-              "Skrypt steruje klawiatura i oknem ProjectWise - w trakcie nie dotykaj klawiatury ani myszy. Przerwanie: zamknij okno PowerShell.", _
-              vbOKCancel + vbQuestion, "Pobieranie plikow z PW") <> vbOK Then Exit Sub
+    If MsgBox("Download " & lst.Count & " file(s) to:" & vbCrLf & target & vbCrLf & vbCrLf & _
+              "The script drives the keyboard and the ProjectWise window - do not touch the keyboard or mouse meanwhile. To abort, close the PowerShell window.", _
+              vbOKCancel + vbQuestion, "Download from PW") <> vbOK Then Exit Sub
     
     Dim fso As Object
     Set fso = CreateObject("Scripting.FileSystemObject")
@@ -124,9 +124,9 @@ End Sub
 ' =======================================================================
 Public Sub PrzeniesDanePW()
     Dim fn As Variant, src As Workbook, nm As Variant, wsS As Worksheet, wsT As Worksheet, done As String
-    fn = Application.GetOpenFilename("Excel (*.xlsm;*.xlsx),*.xlsm;*.xlsx", , "Wskaz STARY skoroszyt z danymi")
+    fn = Application.GetOpenFilename("Excel (*.xlsm;*.xlsx),*.xlsm;*.xlsx", , "Pick the OLD workbook with data")
     If VarType(fn) = vbBoolean Then Exit Sub
-    If StrComp(CStr(fn), ThisWorkbook.FullName, vbTextCompare) = 0 Then Notify "To jest ten sam plik": Exit Sub
+    If StrComp(CStr(fn), ThisWorkbook.FullName, vbTextCompare) = 0 Then Notify "That is the same file": Exit Sub
     Application.ScreenUpdating = False
     Application.EnableEvents = False
     On Error GoTo Fail
@@ -154,17 +154,17 @@ Public Sub PrzeniesDanePW()
     On Error GoTo 0
     Application.EnableEvents = True
     Application.ScreenUpdating = True
-    Notify "Przeniesiono arkusze: " & done
+    Notify "Sheets moved: " & done
     Exit Sub
 Fail:
     Application.EnableEvents = True
     Application.ScreenUpdating = True
     On Error Resume Next
     src.Close False
-    Notify "Blad przenoszenia danych: " & Err.Description
+    Notify "Error moving data: " & Err.Description
 End Sub
 
-' Przycisk "POBIERZ PLIKI" w Widoku: tworzy go, jesli skoroszyt go nie ma (stary plik z danymi), i podpina formularz
+' Button "DOWNLOAD FROM PW" on Dashboard: tworzy go, jesli skoroszyt go nie ma (stary plik z danymi), i podpina formularz
 Public Sub EnsureViewButton()
     Dim ws As Worksheet, shp As Shape
     Set ws = ThisWorkbook.Sheets(SH_VIEW)
@@ -176,7 +176,7 @@ Public Sub EnsureViewButton()
         shp.Name = "btnGetFiles"
         shp.Fill.ForeColor.RGB = RGB(127, 79, 0)
         shp.Line.Visible = msoFalse
-        shp.TextFrame2.TextRange.Text = "POBIERZ PLIKI Z PW"
+        shp.TextFrame2.TextRange.Text = "DOWNLOAD FROM PW"
         shp.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = RGB(255, 255, 255)
         shp.TextFrame2.TextRange.Font.Bold = msoTrue
     End If

@@ -15,7 +15,7 @@ Public Sub TestSzybkosciPW()
         If UCase(Left(lnk, 3)) = "PW:" And UCase(Trim(CStr(wsF.Cells(r, FOLDERS_ACTIVE_COL).Value))) <> "NIE" Then found = lnk: Exit For
     Next r
     If found = "" Then MsgBox "Brak aktywnego linku w arkuszu " & SH_FOLDERS & ".", vbExclamation: Exit Sub
-    If ThisWorkbook.Path = "" Then MsgBox "Zapisz najpierw plik na dysku.", vbCritical: Exit Sub
+    If ThisWorkbook.Path = "" Then MsgBox "Save the workbook to disk first.", vbCritical: Exit Sub
     If MsgBox("Test pobierze folder z pierwszego aktywnego linku kilka razy roznymi sposobami (kilka minut):" & vbCrLf & vbCrLf & found & vbCrLf & vbCrLf & "Kontynuowac?", vbYesNo + vbQuestion, "Test szybkosci PW") <> vbYes Then Exit Sub
     
     Dim dsName As String, fp As String
@@ -177,7 +177,7 @@ Public Sub TestPobieraniaPW()
         If UCase(Left(lnk, 3)) = "PW:" And UCase(Trim(CStr(wsF.Cells(r, FOLDERS_ACTIVE_COL).Value))) <> "NIE" Then found = lnk: Exit For
     Next r
     If found = "" Then Notify "Brak aktywnego linku w arkuszu " & SH_FOLDERS: Exit Sub
-    If ThisWorkbook.Path = "" Then Notify "Zapisz najpierw plik na dysku": Exit Sub
+    If ThisWorkbook.Path = "" Then Notify "Save the workbook to disk first": Exit Sub
     Dim dsName As String, fp As String
     If Not ParseFolderLink(found, dsName, fp) Then Notify "Nie rozpoznano linku folderu": Exit Sub
     Dim doTry As String

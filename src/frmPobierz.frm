@@ -5,7 +5,7 @@ Option Explicit
 
 Private Sub UserForm_Initialize()
     On Error Resume Next
-    Me.txtFolder.Text = CStr(ThisWorkbook.Sheets(SH_VIEW).Range("H3").Value)
+    Me.txtFolder.Text = CStr(ThisWorkbook.Sheets(SH_VIEW).Range(TARGET_CELL).Value)
 End Sub
 
 Private Sub btnSel_Click()

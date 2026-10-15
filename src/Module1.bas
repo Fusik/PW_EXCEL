@@ -26,7 +26,7 @@ End Function
 
 Sub DownloadFromProjectWise_PWPS()                  ' Publiczny punkt wejścia: chroni stan Excela i raportuje błędy
     If gBusy Then
-        Notify "Pobieranie z ProjectWise juz trwa w tle (okno PowerShell). Poczekaj na zakonczenie."
+        Notify "A ProjectWise download is already running in the background (PowerShell window). Please wait for it to finish."
         Exit Sub
     End If
     Dim prevCalc As XlCalculation
@@ -210,7 +210,7 @@ Private Sub RunFinish()
     On Error Resume Next
     ThisWorkbook.Sheets(SH_VIEW).Activate           ' Glowny arkusz pracy to Widok
     On Error GoTo 0
-    Notify "Update completed! Data merged. Tabela PW_DATA została odświeżona." ' Wyświetlenie okna z komunikatem sukcesu
+    Notify "Update completed. Data merged." ' Wyświetlenie okna z komunikatem sukcesu
 End Sub
                                              ' Koniec głównej procedury
 
@@ -240,7 +240,7 @@ Public Sub PollDownload()
     If Now - gStart > TimeSerial(0, 0, 15) And Not PsRunning() Then   ' okno PowerShell zamkniete lub skrypt padl bez ukonczenia
         gBusy = False
         Application.StatusBar = False
-        Notify "Pobieranie zostalo przerwane (okno PowerShell zamkniete albo blad logowania/skryptu). Dane w arkuszu nie zostaly zmienione."
+        Notify "Download aborted (PowerShell window closed or login/script error). Sheet data was not changed."
         Exit Sub
     End If
     SchedulePoll

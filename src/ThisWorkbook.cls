@@ -8,10 +8,12 @@ Attribute VB_TemplateDerived = False
 Attribute VB_Customizable = True
 Private Sub Workbook_Open()
     On Error Resume Next
+    EnsureSheetNames                                ' stare polskie nazwy arkuszy -> angielskie
     ' Znacznik wersji kodu - jesli nie widzisz "build ..." w Instrukcja!B3, import kodu sie nie powiodl
-    ThisWorkbook.Sheets(SH_START).Range("B3").Value = "Wersja skoroszytu: V1.6  ·  build " & BUILD_ID & "  ·  Wystarczy wkleić link w arkuszu Foldery – resztę robi makro. Własne ustawienia: Atrybuty (TAK/NIE) i Widoki."
+    ThisWorkbook.Sheets(SH_START).Range("B3").Value = "Workbook version: V1.7  ·  build " & BUILD_ID & "  ·  Paste a PW folder link in sheet Folders - the macro does the rest. Settings: Attributes (YES/NO) and Views."
     ' Uruchamia Nawigator w tle (Modeless = 0) od razu po starcie Excela
     EnsureViewButton
+    PrepareWindow
     frmNavigator.Show 0
     frmNavigator.DockToView
     If ActiveSheet.Name <> SH_VIEW Then HideNav     ' nawigator tylko na arkuszu Widok
@@ -45,7 +47,7 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
     Exit Sub
 Fail:
     Application.EnableEvents = True
-    Notify "Blad: " & Err.Description
+    Notify "Error: " & Err.Description
 End Sub
 
 ' Klik w kolumne A widoku: folder = filtruje tabele do jego zawartosci, naglowek "Drzewo folderow" = pokaz wszystko
@@ -71,6 +73,7 @@ End Sub
 Private Sub Workbook_SheetActivate(ByVal Sh As Object)
     On Error Resume Next
     If Sh.Name = SH_VIEW Then
+        PrepareWindow
         frmNavigator.Show 0
         frmNavigator.DockToView
     Else

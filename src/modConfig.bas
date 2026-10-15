@@ -10,14 +10,14 @@ Option Explicit
 Public Const BUILD_ID As String = "47de7d7"
 
 ' --- Nazwy arkuszy (zakładek) ---
-Public Const SH_START As String = "Instrukcja"      ' Instrukcja obsługi
-Public Const SH_FOLDERS As String = "Foldery"       ' Lista folderów ProjectWise do skanowania
-Public Const SH_ATTRS As String = "Atrybuty"        ' Lista atrybutów (kolumn) do pobrania
-Public Const SH_DATA As String = "Baza_PW"          ' Wynik: lista plików z ProjectWise
-Public Const SH_DIAG As String = "Diagnostyka"      ' Podgląd dostępnych atrybutów PW
+Public Const SH_START As String = "Guide"            ' User guide
+Public Const SH_FOLDERS As String = "Folders"       ' Lista folderów ProjectWise do skanowania
+Public Const SH_ATTRS As String = "Attributes"     ' Lista atrybutów (kolumn) do pobrania
+Public Const SH_DATA As String = "PW_Data"          ' Wynik: lista plików z ProjectWise
+Public Const SH_DIAG As String = "Diagnostics"      ' Podgląd dostępnych atrybutów PW
 Public Const SH_LOG As String = "Log"               ' Historia zmian
-Public Const SH_VIEWS As String = "Widoki"          ' Definicje widokow (ktore kolumny i w jakiej kolejnosci)
-Public Const SH_VIEW As String = "Widok"            ' Wynik: Baza_PW wyswietlona wg wybranego widoku
+Public Const SH_VIEWS As String = "Views"            ' Definicje widokow (ktore kolumny i w jakiej kolejnosci)
+Public Const SH_VIEW As String = "Dashboard"       ' Wynik: Baza_PW wyswietlona wg wybranego widoku
 
 ' --- Układ arkusza "Foldery": A = Aktywny (TAK/NIE), B = link PW, C = opis ---
 Public Const FOLDERS_FIRST_ROW As Long = 6
@@ -36,9 +36,9 @@ Public Const AUTO_DOWNLOAD_AFTER_PASTE As Boolean = True
 
 ' --- Widoki: arkusz Widoki (A = nazwa, B = kolumny, C = opis; od wiersza 6), arkusz Widok (wybor w B3, szukaj w B4, tabela od wiersza 8) ---
 Public Const VIEWS_FIRST_ROW As Long = 6
-Public Const VIEW_SELECTOR As String = "B3"
+Public Const VIEW_SELECTOR As String = "B5"
 Public Const VIEW_HEADER_ROW As Long = 8          ' naglowek tabeli w arkuszu Widok; dane od wiersza 9
-Public Const VIEW_SEARCH As String = "B4"           ' pole Szukaj w arkuszu Widok
+Public Const VIEW_SEARCH As String = "D5"           ' pole Szukaj w arkuszu Widok
 
 ' --- Układ arkusza "Baza_PW" ---
 Public Const DATA_HEADER_ROW As Long = 11           ' Wiersz nagłówków; dane od następnego wiersza
@@ -55,7 +55,8 @@ Public Const CLR_DELETED As Long = 13551615        ' jasny czerwony RGB(255,199,
 Public Const CLR_WHITE As Long = 16777215
 Public Const CLR_FOLDER_DARK As Long = 6044710     ' RGB(38,60,92)    - folder w motywie Ciemny
 Public Const CLR_FOLDER_BLUE As Long = 16114125    ' RGB(205,225,245) - folder w motywie Niebieski
-Public Const THEME_CELL As String = "H4"           ' wybor motywu w arkuszu Widok (Jasny / Ciemny / Niebieski)
+Public Const TARGET_CELL As String = "H5"          ' folder docelowy pobierania (Dashboard)
+Public Const THEME_CELL As String = "F5"           ' wybor motywu w arkuszu Widok (Jasny / Ciemny / Niebieski)
 
 ' Czy kolor to tlo wiersza folderu w ktoryms z motywow (wykrywanie folderow nie zalezy od motywu)
 Public Function IsFolderColor(ByVal c As Long) As Boolean
