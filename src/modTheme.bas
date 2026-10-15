@@ -88,16 +88,16 @@ Public Sub EnsureSheetNames()
     On Error GoTo 0
 End Sub
 
-' Siatka wylaczona, kolumna A (drzewo) i naglowek zablokowane (freeze panes) - tylko gdy Dashboard jest aktywny
+' Siatka wylaczona, kolumny A:B (nawigator/drzewo) i naglowek zablokowane (freeze panes) - tylko gdy Dashboard jest aktywny
 Public Sub PrepareWindow()
     On Error Resume Next
     If ActiveSheet.Name <> SH_VIEW Then Exit Sub
     ActiveWindow.DisplayGridlines = False
     ActiveWindow.DisplayHeadings = False
-    If ActiveWindow.SplitColumn <> 1 Or ActiveWindow.SplitRow <> VIEW_HEADER_ROW Then
+    If ActiveWindow.SplitColumn <> 2 Or ActiveWindow.SplitRow <> VIEW_HEADER_ROW Then
         ActiveWindow.FreezePanes = False
         ActiveWindow.ScrollRow = 1: ActiveWindow.ScrollColumn = 1
-        ActiveSheet.Range("B" & (VIEW_HEADER_ROW + 1)).Select
+        ActiveSheet.Range("C" & (VIEW_HEADER_ROW + 1)).Select
         ActiveWindow.FreezePanes = True
     End If
 End Sub
@@ -136,6 +136,7 @@ Public Sub StyleDashboard(wsV As Worksheet, ByVal lastR As Long, ByVal lastC As 
     Application.FindFormat.Clear
     
     ' --- tlo za tabela i dane ---
+    wsV.Cells.Interior.Color = t.dataBg                      ' cale tlo arkusza (takze poza tabela) w kolorze motywu
     wsV.Range(wsV.Columns(lastC + 1), wsV.Columns(40)).Interior.Color = t.dataBg
     wsV.Range(wsV.Rows(lastR + 1), wsV.Rows(lastR + 200)).Interior.Color = t.dataBg
     If lastR > VIEW_HEADER_ROW Then
@@ -201,6 +202,10 @@ Public Sub StyleDashboard(wsV As Worksheet, ByVal lastR As Long, ByVal lastC As 
     mSub = subtitle: mWarn = warn: mStatus = Replace(statusTxt, "Last Database Update: ", "")
     DrawHeader wsV
     PrepareWindow
+    Dim uf As Object
+    For Each uf In VBA.UserForms
+        If uf.Name = "frmNavigator" Then uf.ApplyNavTheme
+    Next uf
     Application.ScreenUpdating = True
 End Sub
 

@@ -167,8 +167,10 @@ End Sub
 ' Button "DOWNLOAD FROM PW" on Dashboard: tworzy go, jesli skoroszyt go nie ma (stary plik z danymi), i podpina formularz
 Public Sub EnsureViewButton()
     Dim ws As Worksheet, shp As Shape
-    Set ws = ThisWorkbook.Sheets(SH_VIEW)
     On Error Resume Next
+    ThisWorkbook.Sheets(SH_DATA).Shapes("btnUpdate").Delete          ' PW_Data to czysta baza - bez przyciskow
+    ThisWorkbook.Sheets(SH_DATA).Shapes("btnNavigator").Delete
+    Set ws = ThisWorkbook.Sheets(SH_VIEW)
     Set shp = ws.Shapes("btnGetFiles")
     On Error GoTo 0
     If shp Is Nothing Then

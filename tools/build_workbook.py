@@ -235,8 +235,7 @@ def button(i, name, macro, text, c1, c2, r1, r2, color, edit='oneCell'):
             '<a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="pl-PL" sz="1100" b="1"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:rPr><a:t>%s</a:t></a:r></a:p></xdr:txBody></xdr:sp><xdr:clientData/></xdr:twoCellAnchor>'
             % (edit, c1[0], c1[1], r1[0], r1[1], c2[0], c2[1], r2[0], r2[1], macro, i, name, color, escape(text)))
 hdr_d = d1[:d1.index('<xdr:twoCellAnchor')]
-new_d1 = (hdr_d + button(2, 'btnUpdate', 'DownloadFromProjectWise_PWPS', 'UPDATE DATA', (0, 47625), (0, 1900000), (2, 19050), (3, 311150), '1F7A3D') +
-          button(3, 'btnNavigator', 'ShowNavigator', 'FOLDER NAVIGATOR', (0, 2000000), (0, 3900000), (2, 19050), (3, 311150), '2F5597') + tb + '</xdr:wsDr>')
+new_d1 = (hdr_d + tb + '</xdr:wsDr>')   # PW_Data: tylko pole wyszukiwania, bez przyciskow
 files['xl/drawings/drawing1.xml'] = new_d1.encode('utf-8')
 # drawing2 (Attributes): jeden przycisk w C3
 d2 = T('xl/drawings/drawing2.xml')

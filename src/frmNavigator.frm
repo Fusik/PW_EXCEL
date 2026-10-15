@@ -17,6 +17,8 @@ Option Explicit
     Private Declare PtrSafe Function SetWindowLongPtr Lib "user32" Alias "SetWindowLongPtrA" (ByVal hWnd As LongPtr, ByVal nIndex As Long, ByVal dwNewLong As LongPtr) As LongPtr
     Private Declare PtrSafe Function DrawMenuBar Lib "user32" (ByVal hWnd As LongPtr) As Long
     Private Declare PtrSafe Function GetSystemMenu Lib "user32" (ByVal hWnd As LongPtr, ByVal bRevert As Long) As LongPtr
+    Private Declare PtrSafe Function FindWindowEx Lib "user32" Alias "FindWindowExA" (ByVal hWndParent As LongPtr, ByVal hWndChildAfter As LongPtr, ByVal lpszClass As String, ByVal lpszWindow As String) As LongPtr
+    Private Declare PtrSafe Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hWnd As LongPtr, ByVal wMsg As Long, ByVal wParam As LongPtr, ByVal lParam As LongPtr) As LongPtr
     Private Declare PtrSafe Function GetDC Lib "user32" (ByVal hWnd As LongPtr) As LongPtr
     Private Declare PtrSafe Function ReleaseDC Lib "user32" (ByVal hWnd As LongPtr, ByVal hDC As LongPtr) As Long
     Private Declare PtrSafe Function GetDeviceCaps Lib "gdi32" (ByVal hDC As LongPtr, ByVal nIndex As Long) As Long
@@ -75,23 +77,46 @@ End Sub
 Public Sub DockToView()
     On Error Resume Next
     If ActiveSheet.Name <> SH_VIEW Then Exit Sub
-    Dim ws As Worksheet, pTop As Pane, pBot As Pane, dc As LongPtr, k As Double
+    Dim ws As Worksheet, pBot As Pane, dc As LongPtr, k As Double, sc As Double, vr As Range
     Set ws = ThisWorkbook.Sheets(SH_VIEW)
     dc = GetDC(0): k = 72 / GetDeviceCaps(dc, 88): ReleaseDC 0, dc      ' 88 = LOGPIXELSX -> piksele na punkty formularza
-    Set pTop = ActiveWindow.Panes(1)
+    ActiveWindow.Panes(ActiveWindow.Panes.Count).Activate               ' dolny prawy panel (tabela) - jedyny, ktorego geometrie liczymy
     Set pBot = ActiveWindow.Panes(ActiveWindow.Panes.Count)
+    Set vr = pBot.VisibleRange
+    Dim px0 As Double, py0 As Double, py1 As Double
+    px0 = pBot.PointsToScreenPixelsX(vr.Left)                           ' lewa krawedz panelu tabeli = prawa krawedz zamrozonych kolumn
+    py0 = pBot.PointsToScreenPixelsY(vr.Top)                            ' gorna krawedz panelu tabeli = dolna krawedz zamrozonego naglowka
+    py1 = pBot.PointsToScreenPixelsY(vr.Top + vr.Height)
+    sc = (pBot.PointsToScreenPixelsY(vr.Top + 100) - py0) / 100         ' piksele na punkt arkusza (DPI * zoom)
     Dim x1 As Double, x2 As Double, y1 As Double, y2 As Double
-    x1 = pTop.PointsToScreenPixelsX(ws.Columns(1).Left)
-    x2 = pTop.PointsToScreenPixelsX(ws.Columns(2).Left)
-    y1 = pTop.PointsToScreenPixelsY(ws.Rows(VIEW_HEADER_ROW).Top)
-    y2 = pBot.PointsToScreenPixelsY(pBot.VisibleRange.Top + pBot.VisibleRange.Height)
-    If x2 - x1 < 150 Then x2 = x1 + 150
-    y2 = y2 - 60                                        ' zapas na pasek zakladek i przewijania
-    If y2 - y1 < 200 Then y2 = y1 + 400                 ' zabezpieczenie: gdy obliczenie pozycji sie nie powiodlo, okno nie zostanie puste/splaszczone
+    x2 = px0
+    x1 = x2 - (ws.Columns(3).Left - ws.Columns(1).Left) * sc            ' nawigator zajmuje kolumny A i B
+    y1 = py0 - (ws.Rows(VIEW_HEADER_ROW + 1).Top - ws.Rows(VIEW_HEADER_ROW).Top) * sc   ' od wiersza naglowka tabeli
+    y2 = py1 - 40                                                      ' zapas na poziomy pasek przewijania i zakladki
+    If x2 - x1 < 150 Then x2 = x1 + 300
+    If y2 - y1 < 200 Then y2 = y1 + 400                                 ' zabezpieczenie przed spłaszczeniem
     If y1 <= 0 Then y1 = 100
     Me.StartUpPosition = 0
     Me.Left = x1 * k: Me.Top = y1 * k
     Me.Width = (x2 - x1) * k: Me.Height = (y2 - y1) * k
+    ApplyNavTheme
+End Sub
+
+' Kolory drzewa i tla zgodne z motywem arkusza Dashboard (Dark = ciemne)
+Public Sub ApplyNavTheme()
+    On Error Resume Next
+    Dim th As String, dark As Boolean, bg As Long, fg As Long, hForm As LongPtr, hTree As LongPtr
+    th = LCase(Trim(CStr(ThisWorkbook.Sheets(SH_VIEW).Range(THEME_CELL).Value)))
+    dark = (th = "dark" Or th = "ciemny")
+    bg = IIf(dark, RGB(30, 30, 30), RGB(255, 255, 255))
+    fg = IIf(dark, RGB(224, 224, 224), RGB(0, 0, 0))
+    Me.BackColor = IIf(dark, RGB(37, 37, 38), &H8000000F)
+    hForm = FindWindow("ThunderDFrame", Me.Caption)
+    hTree = FindWindowEx(hForm, 0, "TreeView20WndClass", vbNullString)
+    If hTree <> 0 Then
+        SendMessage hTree, &H111D, 0, bg              ' TVM_SETBKCOLOR
+        SendMessage hTree, &H111E, 0, fg              ' TVM_SETTEXTCOLOR
+    End If
 End Sub
 
 ' =====================================================================
