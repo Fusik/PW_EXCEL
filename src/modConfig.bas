@@ -53,6 +53,14 @@ Public Const CLR_FOLDER As Long = 16247773         ' jasny niebieski RGB(221,235
 Public Const CLR_CHANGED As Long = 10284031        ' jasny żółty RGB(255,235,156) - zmieniona wartość
 Public Const CLR_DELETED As Long = 13551615        ' jasny czerwony RGB(255,199,206) - plik usunięty z PW
 Public Const CLR_WHITE As Long = 16777215
+Public Const CLR_FOLDER_DARK As Long = 6044710     ' RGB(38,60,92)    - folder w motywie Ciemny
+Public Const CLR_FOLDER_BLUE As Long = 16114125    ' RGB(205,225,245) - folder w motywie Niebieski
+Public Const THEME_CELL As String = "H4"           ' wybor motywu w arkuszu Widok (Jasny / Ciemny / Niebieski)
+
+' Czy kolor to tlo wiersza folderu w ktoryms z motywow (wykrywanie folderow nie zalezy od motywu)
+Public Function IsFolderColor(ByVal c As Long) As Boolean
+    IsFolderColor = (c = CLR_FOLDER Or c = CLR_FOLDER_DARK Or c = CLR_FOLDER_BLUE)
+End Function
 
 ' Komunikat bez okna (nie blokuje Excela): pasek stanu + Immediate
 Public Sub Notify(ByVal msg As String)

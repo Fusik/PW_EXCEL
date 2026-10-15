@@ -23,7 +23,7 @@ foreach ($f in Get-ChildItem (Join-Path $PSScriptRoot 'src') -File) {
     foreach ($l in Get-Content $f.FullName -Encoding UTF8) { $n++; if ($l.Length -gt 1000) { throw ('Za dluga linia VBA (' + $l.Length + ' znakow): ' + $f.Name + ':' + $n) } }
 }
 
-$modules = 'modConfig', 'modViews', 'modBench', 'modDownload', 'Module1', 'Module2', 'Module3'
+$modules = 'modConfig', 'modViews', 'modTheme', 'modBench', 'modDownload', 'Module1', 'Module2', 'Module3'
 foreach ($m in $modules) { [IO.File]::WriteAllText((Join-Path $tmp "$m.bas"), (Read-Src "$m.bas"), $ansi) }
 
 # komponenty z kodem "w środku": plik źródłowy -> nazwa komponentu w skoroszycie

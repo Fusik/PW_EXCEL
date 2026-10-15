@@ -78,6 +78,7 @@ Public Sub BuildView()
     old.ClearComments
     
     stp = "kopiowanie"
+    gRowCount = 0
     If n > 0 And lastR >= DATA_HEADER_ROW Then
         For i = 1 To n
             wsD.Range(wsD.Cells(DATA_HEADER_ROW, colList(i)), wsD.Cells(lastR, colList(i))).Copy wsV.Cells(VIEW_HEADER_ROW, i + 1)
@@ -86,6 +87,8 @@ Public Sub BuildView()
         Application.CutCopyMode = False
         BuildTree wsV, wsD, lastR
     End If
+    stp = "motyw"
+    StyleDashboard wsV, lastR - DATA_HEADER_ROW + VIEW_HEADER_ROW, n + 1
     stp = "opis"
     wsV.Range("D3").Value = "Kolumn: " & n & "  |  Wierszy: " & IIf(lastR > DATA_HEADER_ROW, lastR - DATA_HEADER_ROW, 0) & "  |  Odswiezono: " & Format(Now, "yyyy-mm-dd hh:nn")
     wsV.Range("D4").Value = ""
@@ -101,19 +104,28 @@ Fail:
     Err.Raise Err.Number, , Err.Description & " [BuildView: " & stp & ", kolumna " & i & "]"
 End Sub
 
+' Typy wierszy widoku (do motywu): 0 plik, 1 folder, 2 usuniety; indeks = wiersz widoku - VIEW_HEADER_ROW
+Public gRowType() As Byte
+Public gRowCount As Long
+
 ' Kolumna A widoku = drzewo folderow (wciecie wg glebokosci sciezki); pliki folderu sa pod nim, od kolumny B, i da sie je zwinac (+/- z lewej)
 Private Sub BuildTree(wsV As Worksheet, wsD As Worksheet, ByVal lastR As Long)
     Dim n As Long, r As Long, d() As Long, isF() As Boolean, txt As String, minD As Long, k As Long
     n = lastR - DATA_HEADER_ROW
+    gRowCount = 0
     If n < 1 Then Exit Sub
     ReDim d(1 To n): ReDim isF(1 To n)
+    ReDim gRowType(1 To n): gRowCount = n
     minD = 99
     For r = 1 To n
-        If wsD.Cells(DATA_HEADER_ROW + r, 1).Interior.Color = CLR_FOLDER Then
+        If IsFolderColor(wsD.Cells(DATA_HEADER_ROW + r, 1).Interior.Color) Then
             isF(r) = True
-            txt = Replace(CStr(wsD.Cells(DATA_HEADER_ROW + r, 1).Value), "/", "")
-            d(r) = Len(txt) - Len(Replace(txt, "", ""))
+            gRowType(r) = 1
+            txt = Replace(CStr(wsD.Cells(DATA_HEADER_ROW + r, 1).Value), "/", "\")
+            d(r) = Len(txt) - Len(Replace(txt, "\", ""))
             If d(r) < minD Then minD = d(r)
+        ElseIf wsD.Cells(DATA_HEADER_ROW + r, 1).Interior.Color = CLR_DELETED Then
+            gRowType(r) = 2
         End If
     Next r
     With wsV.Cells(VIEW_HEADER_ROW, 1)
@@ -128,10 +140,10 @@ Private Sub BuildTree(wsV As Worksheet, wsD As Worksheet, ByVal lastR As Long)
         k = VIEW_HEADER_ROW + r
         If isF(r) Then
             lvl = d(r) - minD + 1: If lvl > 7 Then lvl = 7
-            txt = Replace(CStr(wsD.Cells(DATA_HEADER_ROW + r, 1).Value), "/", "")
-            If Right(txt, 1) = "" Then txt = Left(txt, Len(txt) - 1)
+            txt = Replace(CStr(wsD.Cells(DATA_HEADER_ROW + r, 1).Value), "/", "\")
+            If Right(txt, 1) = "\" Then txt = Left(txt, Len(txt) - 1)
             With wsV.Cells(k, 1)
-                .Value = Mid(txt, InStrRev(txt, "") + 1)
+                .Value = Mid(txt, InStrRev(txt, "\") + 1)
                 .IndentLevel = lvl - 1
                 .Interior.Color = CLR_FOLDER: .Font.Bold = True
             End With
@@ -148,7 +160,7 @@ Public Sub CollapseFiles(wsV As Worksheet)
     Dim lastR As Long, r As Long
     lastR = wsV.UsedRange.Row + wsV.UsedRange.Rows.Count - 1
     For r = VIEW_HEADER_ROW + 1 To lastR
-        If wsV.Cells(r, 1).Interior.Color <> CLR_FOLDER Then wsV.Rows(r).Hidden = True
+        If Not IsFolderColor(wsV.Cells(r, 1).Interior.Color) Then wsV.Rows(r).Hidden = True
     Next r
 End Sub
 
@@ -160,23 +172,41 @@ Private Function FolderKey(ByVal vRow As Long) As String
     FolderKey = t
 End Function
 
-' Klik w folder: pokazuje tylko ten folder, jego podfoldery i ich pliki
+' Klik w folder (jak w Eksploratorze): sam folder + jego pliki + najblizsze podfoldery (bez ich plikow - kliknij podfolder, zeby wejsc glebiej)
 Public Sub ShowFolderRows(ByVal vRow As Long, Optional ByVal baseKey As String = "")
-    Dim wsV As Worksheet, r As Long, lastR As Long, base As String, vis As Boolean, runStart As Long
+    Dim wsV As Worksheet, r As Long, j As Long, lastR As Long, base As String, cnt As Long
+    Dim rowsArr() As Long, keys() As String, nearest() As Boolean
     Set wsV = ThisWorkbook.Sheets(SH_VIEW)
     lastR = wsV.UsedRange.Row + wsV.UsedRange.Rows.Count - 1
     base = IIf(baseKey = "", FolderKey(vRow), baseKey)
+    ReDim rowsArr(1 To lastR): ReDim keys(1 To lastR): ReDim nearest(1 To lastR)
+    For r = VIEW_HEADER_ROW + 1 To lastR
+        If IsFolderColor(wsV.Cells(r, 1).Interior.Color) Then
+            If StrComp(Left(FolderKey(r), Len(base)), base, vbTextCompare) = 0 Then
+                cnt = cnt + 1: rowsArr(cnt) = r: keys(cnt) = FolderKey(r)
+            End If
+        End If
+    Next r
     Application.ScreenUpdating = False
     wsV.Rows(VIEW_HEADER_ROW + 1 & ":" & lastR).Hidden = True
-    For r = vRow To lastR + 1
-        If r <= lastR Then
-            If wsV.Cells(r, 1).Interior.Color = CLR_FOLDER Then vis = (StrComp(Left(FolderKey(r), Len(base)), base, vbTextCompare) = 0)
+    Dim i As Long, isNear As Boolean, e As Long
+    For i = 1 To cnt
+        If StrComp(keys(i), base, vbTextCompare) = 0 Then
+            e = lastR                                       ' sam folder: wiersz + jego pliki (do nastepnego wiersza folderu)
+            For r = rowsArr(i) + 1 To lastR
+                If IsFolderColor(wsV.Cells(r, 1).Interior.Color) Then e = r - 1: Exit For
+            Next r
+            wsV.Rows(rowsArr(i) & ":" & e).Hidden = False
         Else
-            vis = False
+            isNear = True                                   ' najblizszy podfolder = zaden inny folder z listy nie jest jego przodkiem
+            For j = 1 To cnt
+                If j <> i Then
+                    If Len(keys(j)) < Len(keys(i)) And StrComp(Left(keys(i), Len(keys(j))), keys(j), vbTextCompare) = 0 And StrComp(keys(j), base, vbTextCompare) <> 0 Then isNear = False: Exit For
+                End If
+            Next j
+            If isNear Then wsV.Rows(rowsArr(i)).Hidden = False
         End If
-        If vis And runStart = 0 Then runStart = r
-        If Not vis And runStart > 0 Then wsV.Rows(runStart & ":" & (r - 1)).Hidden = False: runStart = 0
-    Next r
+    Next i
     Application.ScreenUpdating = True
 End Sub
 
@@ -186,7 +216,7 @@ Public Function ShowFolderByKey(ByVal key As String) As Long
     Set wsV = ThisWorkbook.Sheets(SH_VIEW)
     lastR = wsV.UsedRange.Row + wsV.UsedRange.Rows.Count - 1
     For r = VIEW_HEADER_ROW + 1 To lastR
-        If wsV.Cells(r, 1).Interior.Color = CLR_FOLDER Then
+        If IsFolderColor(wsV.Cells(r, 1).Interior.Color) Then
             If StrComp(Left(FolderKey(r), Len(key)), key, vbTextCompare) = 0 Then
                 ShowFolderRows r, key
                 ShowFolderByKey = r
@@ -228,7 +258,7 @@ Public Sub FilterRows(ws As Worksheet, ByVal headerRow As Long, ByVal txt As Str
         n = UBound(v, 1)
         ReDim hit(1 To n): ReDim isFolder(1 To n)
         For r = 1 To n
-            isFolder(r) = (ws.Cells(headerRow + r, 1).Interior.Color = CLR_FOLDER)
+            isFolder(r) = IsFolderColor(ws.Cells(headerRow + r, 1).Interior.Color)
             For c = 1 To lastC
                 If Not IsError(v(r, c)) Then
                     If InStr(1, CStr(v(r, c)), txt, vbTextCompare) > 0 Then hit(r) = True: Exit For

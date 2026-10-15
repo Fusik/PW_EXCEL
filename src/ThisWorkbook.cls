@@ -27,7 +27,7 @@ End Sub
 Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
     On Error GoTo Fail
     If Sh.Name = SH_VIEW Then
-        If Not Intersect(Target, Sh.Range(VIEW_SELECTOR)) Is Nothing Then
+        If Not Intersect(Target, Sh.Range(VIEW_SELECTOR & "," & THEME_CELL)) Is Nothing Then
             Application.EnableEvents = False
             BuildView
             Application.EnableEvents = True
@@ -60,7 +60,7 @@ Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Ra
     If Target.Row = VIEW_HEADER_ROW Then
         ShowAllFolders
     ElseIf Target.Row > VIEW_HEADER_ROW Then
-        If Target.Interior.Color = CLR_FOLDER Then ShowFolderRows Target.Row
+        If IsFolderColor(Target.Interior.Color) Then ShowFolderRows Target.Row
     End If
 Done:
     Application.EnableEvents = True

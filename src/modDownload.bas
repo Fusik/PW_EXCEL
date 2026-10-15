@@ -24,7 +24,7 @@ Public Function LinksFromSelection() As String
     multi = (ActiveSheet.Name = SH_VIEW And Selection.Rows.Count > 1)
     skipHidden = (Len(Trim(CStr(wsV.Range(VIEW_SEARCH).Value))) >= 2)
     For r = VIEW_HEADER_ROW + 1 To lastR
-        If wsV.Cells(r, 1).Interior.Color = CLR_FOLDER Then
+        If IsFolderColor(wsV.Cells(r, 1).Interior.Color) Then
             folderSel = multi And Not Intersect(wsV.Rows(r), Selection) Is Nothing
         Else
             inSel = Not multi
