@@ -15,7 +15,10 @@ Private Sub Workbook_Open()
     EnsureViewButton
     Dim wsDash As Worksheet
     Set wsDash = ThisWorkbook.Sheets(SH_VIEW)
-    If CStr(wsDash.Range("A1").Value) <> "PW TRACKER" Then   ' pierwsze otwarcie: narysuj dashboard (potem odswieza go BuildView)
+    Dim hasUi As Boolean
+    hasUi = False
+    hasUi = Not wsDash.Shapes("ui_title") Is Nothing
+    If Not hasUi Then                               ' pierwsze otwarcie: narysuj dashboard (potem odswieza go BuildView)
         Application.EnableEvents = False
         If Trim(CStr(wsDash.Range(VIEW_SELECTOR).Value)) = "" Or Trim(CStr(wsDash.Range(VIEW_SELECTOR).Value)) = "Wszystko" Then wsDash.Range(VIEW_SELECTOR).Value = CStr(ThisWorkbook.Sheets(SH_VIEWS).Cells(VIEWS_FIRST_ROW, 1).Value)
         StyleDashboard wsDash, VIEW_HEADER_ROW, 12, "No data yet - paste a PW folder link in sheet Folders or click UPDATE DATA", "", "-"

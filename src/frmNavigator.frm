@@ -86,6 +86,7 @@ Public Sub DockToView()
     y1 = pTop.PointsToScreenPixelsY(ws.Rows(VIEW_HEADER_ROW).Top)
     y2 = pBot.PointsToScreenPixelsY(pBot.VisibleRange.Top + pBot.VisibleRange.Height)
     If x2 - x1 < 150 Then x2 = x1 + 150
+    y2 = y2 - 60                                        ' zapas na pasek zakladek i przewijania
     If y2 - y1 < 200 Then y2 = y1 + 400                 ' zabezpieczenie: gdy obliczenie pozycji sie nie powiodlo, okno nie zostanie puste/splaszczone
     If y1 <= 0 Then y1 = 100
     Me.StartUpPosition = 0

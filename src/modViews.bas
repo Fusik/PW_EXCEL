@@ -26,8 +26,7 @@ Public Sub BuildView()
     
     viewName = Trim(CStr(wsV.Range(VIEW_SELECTOR).Value))
     If viewName = "" Then                           ' pierwsze uruchomienie nowego ukladu: przejmij wybor ze starej komorki B3 albo pierwszy widok
-        viewName = Trim(CStr(wsV.Range("B3").Value))
-        If viewName = "" Or viewName = "Light" Then viewName = Trim(CStr(wsDef.Cells(VIEWS_FIRST_ROW, 1).Value))
+        viewName = Trim(CStr(wsDef.Cells(VIEWS_FIRST_ROW, 1).Value))
         wsV.Range(VIEW_SELECTOR).Value = viewName
     End If
     If viewName = "" Then Exit Sub
@@ -98,7 +97,7 @@ Public Sub BuildView()
     End If
     stp = "motyw"
     Dim subT As String, warnT As String
-    subT = n & " columns   |   " & IIf(lastR > DATA_HEADER_ROW, lastR - DATA_HEADER_ROW, 0) & " rows   |   view refreshed " & Format(Now, "yyyy-mm-dd hh:nn")
+    subT = n & " columns  |  " & IIf(lastR > DATA_HEADER_ROW, lastR - DATA_HEADER_ROW, 0) & " rows  |  refreshed " & Format(Now, "yyyy-mm-dd hh:nn")
     If missing <> "" Then warnT = "Columns not found: " & Left(missing, Len(missing) - 2)
     StyleDashboard wsV, lastR - DATA_HEADER_ROW + VIEW_HEADER_ROW, n + 1, subT, warnT, CStr(wsD.Range("A8").Value)
     stp = "filtr"

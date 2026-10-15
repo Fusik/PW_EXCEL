@@ -36,9 +36,9 @@ Public Const AUTO_DOWNLOAD_AFTER_PASTE As Boolean = True
 
 ' --- Widoki: arkusz Widoki (A = nazwa, B = kolumny, C = opis; od wiersza 6), arkusz Widok (wybor w B3, szukaj w B4, tabela od wiersza 8) ---
 Public Const VIEWS_FIRST_ROW As Long = 6
-Public Const VIEW_SELECTOR As String = "B5"
+Public Const VIEW_SELECTOR As String = "AB1"
 Public Const VIEW_HEADER_ROW As Long = 8          ' naglowek tabeli w arkuszu Widok; dane od wiersza 9
-Public Const VIEW_SEARCH As String = "D5"           ' pole Szukaj w arkuszu Widok
+Public Const VIEW_SEARCH As String = "AB2"           ' pole Szukaj w arkuszu Widok
 
 ' --- Układ arkusza "Baza_PW" ---
 Public Const DATA_HEADER_ROW As Long = 11           ' Wiersz nagłówków; dane od następnego wiersza
@@ -55,8 +55,8 @@ Public Const CLR_DELETED As Long = 13551615        ' jasny czerwony RGB(255,199,
 Public Const CLR_WHITE As Long = 16777215
 Public Const CLR_FOLDER_DARK As Long = 6044710     ' RGB(38,60,92)    - folder w motywie Ciemny
 Public Const CLR_FOLDER_BLUE As Long = 16114125    ' RGB(205,225,245) - folder w motywie Niebieski
-Public Const TARGET_CELL As String = "H5"          ' folder docelowy pobierania (Dashboard)
-Public Const THEME_CELL As String = "F5"           ' wybor motywu w arkuszu Widok (Jasny / Ciemny / Niebieski)
+Public Const TARGET_CELL As String = "AB4"          ' folder docelowy pobierania (Dashboard)
+Public Const THEME_CELL As String = "AB3"           ' wybor motywu w arkuszu Widok (Jasny / Ciemny / Niebieski)
 
 ' Czy kolor to tlo wiersza folderu w ktoryms z motywow (wykrywanie folderow nie zalezy od motywu)
 Public Function IsFolderColor(ByVal c As Long) As Boolean

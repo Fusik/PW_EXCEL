@@ -5,6 +5,9 @@ Option Explicit
 ' WYGLAD APLIKACJI: dashboard w arkuszu Widok (naglowek, wyszukiwarka, legenda, motywy Light / Dark / Blue)
 ' Motyw wybiera sie w Widok!H4. Kolory danych sa nakladane po kazdej przebudowie widoku (BuildView).
 ' =======================================================================
+Private mFold As Long, mFile As Long, mChg As Long, mDel As Long
+Private mSub As String, mWarn As String, mStatus As String
+
 Private Type TTheme
     titleBg As Long
     titleFg As Long
@@ -99,47 +102,6 @@ Public Sub PrepareWindow()
     End If
 End Sub
 
-' Ustawia przyciski w wierszu 6 (jeden na kolumne A, B, C) i nadaje angielskie napisy
-Private Sub PlaceButtons(wsV As Worksheet)
-    Dim names As Variant, caps As Variant, cols As Variant, i As Long, shp As Shape
-    names = Array("btnUpdateV", "btnNavV", "btnGetFiles")
-    caps = Array("UPDATE DATA", "FOLDER NAVIGATOR", "DOWNLOAD FROM PW")
-    On Error Resume Next
-    For i = 0 To 2
-        Set shp = Nothing
-        Set shp = wsV.Shapes(CStr(names(i)))
-        If Not shp Is Nothing Then
-            shp.Placement = xlFreeFloating
-            shp.Left = wsV.Cells(6, i + 1).Left + 6
-            shp.Width = wsV.Cells(6, i + 1).Width - 12
-            shp.Top = wsV.Cells(6, 1).Top + 4
-            shp.Height = wsV.Cells(6, 1).Height - 8
-            shp.TextFrame2.TextRange.Text = CStr(caps(i))
-        End If
-    Next i
-    On Error GoTo 0
-End Sub
-
-Private Sub Card(wsV As Worksheet, ByVal cols As String, ByVal lbl As String, ByVal valTxt As String, t As TTheme, ByVal accentClr As Long)
-    Dim lblR As Range, valR As Range, c1 As String, c2 As String
-    c1 = Split(cols & ":" & cols, ":")(0): c2 = Split(cols & ":" & cols, ":")(1)
-    Set lblR = wsV.Range(c1 & "2:" & c2 & "2")
-    Set valR = wsV.Range(c1 & "3:" & c2 & "3")
-    If c1 <> c2 Then lblR.Merge: valR.Merge
-    lblR.Value = lbl
-    valR.NumberFormat = "@"
-    valR.Value = valTxt
-    With wsV.Range(c1 & "2:" & c2 & "3")
-        .Interior.Color = t.cardBg
-        .HorizontalAlignment = xlLeft: .IndentLevel = 1
-        .Borders(xlEdgeLeft).Color = t.panelBg: .Borders(xlEdgeLeft).Weight = xlThick
-        .Borders(xlEdgeRight).Color = t.panelBg: .Borders(xlEdgeRight).Weight = xlThick
-        .Borders(xlEdgeTop).Color = accentClr: .Borders(xlEdgeTop).Weight = xlThick
-    End With
-    lblR.Font.Size = 8: lblR.Font.Bold = True: lblR.Font.Color = t.cardMuted
-    valR.Font.Size = 20: valR.Font.Bold = True: valR.Font.Color = accentClr
-End Sub
-
 ' Naklada motyw i uklad dashboardu na arkusz Dashboard; lastR = ostatni wiersz danych, lastC = ostatnia kolumna tabeli
 Public Sub StyleDashboard(wsV As Worksheet, ByVal lastR As Long, ByVal lastC As Long, ByVal subtitle As String, ByVal warn As String, ByVal statusTxt As String)
     Dim t As TTheme, nm As String, i As Long, r As Long
@@ -148,7 +110,7 @@ Public Sub StyleDashboard(wsV As Worksheet, ByVal lastR As Long, ByVal lastC As 
     On Error Resume Next
     selV = CStr(wsV.Range(VIEW_SELECTOR).Value): srchV = CStr(wsV.Range(VIEW_SEARCH).Value)
     tgtV = CStr(wsV.Range(TARGET_CELL).Value): thV = CStr(wsV.Range(THEME_CELL).Value)
-    If Trim(thV) = "" Then thV = "Light"
+    If Trim(thV) = "" Then thV = "Light": wsV.Range(THEME_CELL).Value = thV
     nm = thV
     t = GetTheme(nm)
     If lastR < VIEW_HEADER_ROW Then lastR = VIEW_HEADER_ROW
@@ -216,83 +178,202 @@ Public Sub StyleDashboard(wsV As Worksheet, ByVal lastR As Long, ByVal lastC As 
     wsV.Rows(VIEW_HEADER_ROW).RowHeight = 28
     wsV.Cells(VIEW_HEADER_ROW, 1).Value = "FOLDER TREE  (click here = show all)"
     
-    ' --- panel gorny: wiersze 1-7 budowane od zera ---
+    ' --- panel gorny: wiersze 1-7 to tylko tlo; elementy (karty, pola, przyciski) to ksztalty niezalezne od szerokosci kolumn ---
     With wsV.Range(wsV.Cells(1, 1), wsV.Cells(7, 40))
         .UnMerge
         .Validation.Delete
         .Clear
-        .Interior.Color = t.panelBg: .Font.Color = t.panelFg: .Font.Name = "Segoe UI": .Font.Size = 10
-        .VerticalAlignment = xlCenter
+        .Interior.Color = t.panelBg: .Font.Name = "Segoe UI": .Font.Size = 10
     End With
-    wsV.Rows(1).RowHeight = 40: wsV.Rows(2).RowHeight = 18: wsV.Rows(3).RowHeight = 34: wsV.Rows(4).RowHeight = 8
-    wsV.Rows(5).RowHeight = 32: wsV.Rows(6).RowHeight = 40: wsV.Rows(7).RowHeight = 26
-    With wsV.Range(wsV.Cells(1, 1), wsV.Cells(1, 40))
-        .Interior.Color = t.titleBg: .Font.Color = t.titleFg
-    End With
-    With wsV.Range("A1"): .Value = "PW TRACKER": .Font.Size = 22: .Font.Bold = True: .IndentLevel = 1: End With
-    wsV.Range("A2").Value = subtitle: wsV.Range("A2").Font.Size = 9: wsV.Range("A2").Font.Color = t.cardMuted: wsV.Range("A2").IndentLevel = 1
-    wsV.Range("A3").Value = warn: wsV.Range("A3").Font.Size = 9: wsV.Range("A3").Font.Color = RGB(192, 0, 0): wsV.Range("A3").WrapText = True: wsV.Range("A3").IndentLevel = 1
-    
-    ' --- karty KPI ---
-    Card wsV, "B", "FOLDERS", CStr(nFold), t, RGB(47, 117, 181)
-    Card wsV, "C", "FILES", CStr(nFile), t, RGB(0, 150, 136)
-    Card wsV, "D", "CHANGED CELLS", CStr(nChg), t, RGB(237, 125, 49)
-    Card wsV, "E:F", "DELETED FROM PW", CStr(nDel), t, RGB(214, 69, 65)
-    Card wsV, "G:I", "LAST UPDATE", Replace(statusTxt, "Last Database Update: ", ""), t, t.accent
-    wsV.Range("G3").Font.Size = 11
-    
-    ' --- sterowanie: widok, wyszukiwarka, motyw, folder docelowy ---
-    Dim lbl As Variant
-    For Each lbl In Array("A5", "C5", "E5", "G5")
-        With wsV.Range(CStr(lbl)): .Font.Bold = True: .Font.Size = 9: .HorizontalAlignment = xlRight: .Font.Color = t.cardMuted: End With
-    Next lbl
-    wsV.Range("A5").Value = "VIEW": wsV.Range("C5").Value = "SEARCH": wsV.Range("E5").Value = "THEME": wsV.Range("G5").Value = "DOWNLOAD TO"
-    wsV.Range(VIEW_SELECTOR).Value = selV: wsV.Range(VIEW_SEARCH).Value = srchV
-    wsV.Range(TARGET_CELL).Value = tgtV: wsV.Range(THEME_CELL).Value = thV
-    wsV.Range("H5:J5").Merge
-    Dim fld As Variant
-    For Each fld In Array(VIEW_SELECTOR, VIEW_SEARCH, THEME_CELL, "H5:J5")
-        With wsV.Range(CStr(fld))
-            .Interior.Color = t.inputBg: .Font.Color = t.inputFg: .Font.Bold = True
-            .Borders.LineStyle = xlContinuous: .Borders.Color = t.accent: .Borders.Weight = xlThin
-            .HorizontalAlignment = xlLeft: .IndentLevel = 1
-        End With
-    Next fld
-    With wsV.Range(VIEW_SEARCH)                              ' wyszukiwarka: wyrazna, gruba obwodka i wieksza czcionka
-        .Borders.Weight = xlThick: .Borders.Color = t.accent: .Font.Size = 12
-    End With
-    With wsV.Range(VIEW_SELECTOR).Validation
-        .Delete
-        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="=" & SH_VIEWS & "!$A$" & VIEWS_FIRST_ROW & ":$A$25"
-    End With
-    With wsV.Range(THEME_CELL).Validation
-        .Delete
-        .Add Type:=xlValidateList, AlertStyle:=xlValidAlertStop, Formula1:="Light,Dark,Blue"
-    End With
-    
-    ' --- legenda kolorow ---
-    wsV.Range("A7").Value = "COLOR LEGEND"
-    With wsV.Range("A7"): .Font.Bold = True: .Font.Size = 9: .HorizontalAlignment = xlRight: .Font.Color = t.cardMuted: End With
-    Dim chipTxt As Variant, chipBg As Variant, chipAt As Variant, k As Long
-    chipTxt = Array("Folder", "Changed value", "Deleted from PW", "Regular file")
-    chipBg = Array(t.folderBg, t.changedBg, t.deletedBg, t.dataBg)
-    chipAt = Array("B7", "C7", "D7", "E7:F7")
-    For k = 0 To 3
-        With wsV.Range(CStr(chipAt(k)))
-            If k = 3 Then .Merge
-            .Value = chipTxt(k)
-            .Interior.Color = chipBg(k): .Font.Color = t.dataFg
-            .HorizontalAlignment = xlCenter: .Font.Bold = True: .Font.Size = 9
-            .Borders.LineStyle = xlContinuous: .Borders.Color = t.accent: .Borders.Weight = xlThin
-        End With
-    Next k
-    With wsV.Range("G7"): .Value = "Click a folder in column A to filter. Click the header (A8) to show all.": .Font.Italic = True: .Font.Size = 9: .Font.Color = t.cardMuted: .IndentLevel = 1: End With
-    
-    ' --- linia pod panelem ---
+    wsV.Range(wsV.Cells(1, 1), wsV.Cells(1, 40)).Interior.Color = t.titleBg
+    wsV.Rows(1).RowHeight = 40: wsV.Rows(2).RowHeight = 62: wsV.Rows(3).RowHeight = 38: wsV.Rows(4).RowHeight = 42
+    wsV.Rows(5).RowHeight = 28: wsV.Rows(6).RowHeight = 4: wsV.Rows(7).RowHeight = 4
     With wsV.Range(wsV.Cells(7, 1), wsV.Cells(7, 40)).Borders(xlEdgeBottom)
         .Color = t.accent: .Weight = xlMedium
     End With
-    PlaceButtons wsV
+    ' stan interfejsu przechowywany w ukrytych komorkach (kolumny AA:AB)
+    wsV.Range(VIEW_SELECTOR).Value = selV: wsV.Range(VIEW_SEARCH).Value = srchV
+    wsV.Range(TARGET_CELL).Value = tgtV: wsV.Range(THEME_CELL).Value = thV
+    wsV.Range("AA:AB").Font.Color = t.panelBg
+    wsV.Columns("AA:AB").Hidden = True
+    
+    mFold = nFold: mFile = nFile: mChg = nChg: mDel = nDel
+    mSub = subtitle: mWarn = warn: mStatus = Replace(statusTxt, "Last Database Update: ", "")
+    DrawHeader wsV
     PrepareWindow
     Application.ScreenUpdating = True
+End Sub
+
+Private Function UiShape(wsV As Worksheet, ByVal nm As String, ByVal kind As Long, ByVal l As Double, ByVal tp As Double, ByVal w As Double, ByVal h As Double, _
+                         ByVal fillClr As Long, ByVal lineClr As Long, ByVal txt As String, ByVal fgClr As Long, ByVal fsz As Long, ByVal macro As String, ByVal alignCenter As Boolean) As Shape
+    Dim shp As Shape
+    On Error Resume Next
+    Set shp = wsV.Shapes(nm)
+    On Error GoTo 0
+    If shp Is Nothing Then
+        Set shp = wsV.Shapes.AddShape(kind, l, tp, w, h)
+        shp.Name = nm
+    End If
+    shp.Placement = xlFreeFloating
+    shp.Left = l: shp.Top = tp: shp.Width = w: shp.Height = h
+    shp.Fill.ForeColor.RGB = fillClr
+    If lineClr < 0 Then
+        shp.Line.Visible = msoFalse
+    Else
+        shp.Line.Visible = msoTrue: shp.Line.ForeColor.RGB = lineClr: shp.Line.Weight = 1
+    End If
+    With shp.TextFrame2
+        .VerticalAnchor = msoAnchorMiddle
+        .MarginLeft = 10: .MarginRight = 8: .MarginTop = 2: .MarginBottom = 2
+        .WordWrap = msoFalse
+        .TextRange.Text = txt
+        .TextRange.Font.Fill.ForeColor.RGB = fgClr
+        .TextRange.Font.Size = fsz
+        .TextRange.Font.Name = "Segoe UI"
+        .TextRange.ParagraphFormat.Alignment = IIf(alignCenter, msoAlignCenter, msoAlignLeft)
+    End With
+    shp.OnAction = macro
+    Set UiShape = shp
+End Function
+
+' Rysuje caly gorny panel z ksztaltow (pozycje bezwzgledne - zmiana szerokosci kolumn niczego nie psuje)
+Public Sub DrawHeader(wsV As Worksheet)
+    Dim t As TTheme, x As Double, y As Double, shp As Shape, k As Long
+    Dim vw As String, sr As String, th As String, tg As String
+    On Error Resume Next
+    th = CStr(wsV.Range(THEME_CELL).Value): If Trim(th) = "" Then th = "Light"
+    t = GetTheme(th)
+    vw = CStr(wsV.Range(VIEW_SELECTOR).Value): sr = CStr(wsV.Range(VIEW_SEARCH).Value): tg = CStr(wsV.Range(TARGET_CELL).Value)
+    Dim wn As String: wn = "'" & ThisWorkbook.Name & "'!"
+    
+    ' tytul + info
+    Set shp = UiShape(wsV, "ui_title", msoShapeRectangle, 0, 0, 4000, wsV.Rows(2).Top, t.titleBg, -1, "PW TRACKER", t.titleFg, 22, "", False)
+    shp.TextFrame2.TextRange.Font.Bold = msoTrue
+    Set shp = UiShape(wsV, "ui_info", msoShapeRectangle, 250, 6, 900, 28, t.titleBg, -1, mSub & IIf(mWarn <> "", "   |   " & mWarn, ""), t.cardMuted, 9, "", False)
+    shp.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = IIf(mWarn <> "", RGB(255, 140, 130), RGB(170, 185, 210))
+    
+    ' karty KPI
+    Dim caps As Variant, vals As Variant, clrs As Variant, wds As Variant
+    caps = Array("FOLDERS", "FILES", "CHANGED CELLS", "DELETED FROM PW", "LAST UPDATE")
+    vals = Array(CStr(mFold), CStr(mFile), CStr(mChg), CStr(mDel), mStatus)
+    clrs = Array(RGB(47, 117, 181), RGB(0, 150, 136), RGB(237, 125, 49), RGB(214, 69, 65), t.accent)
+    wds = Array(130, 130, 150, 160, 300)
+    x = 10: y = wsV.Rows(2).Top + 6
+    For k = 0 To 4
+        Set shp = UiShape(wsV, "ui_card" & k, msoShapeRectangle, x, y, CDbl(wds(k)), 50, t.cardBg, RGB(205, 210, 220), CStr(caps(k)) & vbCr & CStr(vals(k)), t.cardMuted, 8, "", False)
+        shp.Line.ForeColor.RGB = t.panelBg
+        With shp.TextFrame2.TextRange
+            .Paragraphs(1).Font.Size = 8: .Paragraphs(1).Font.Bold = msoTrue
+            .Paragraphs(2).Font.Size = IIf(k = 4, 12, 20): .Paragraphs(2).Font.Bold = msoTrue
+            .Paragraphs(2).Font.Fill.ForeColor.RGB = clrs(k)
+        End With
+        shp.Line.Visible = msoFalse
+        x = x + wds(k) + 8
+    Next k
+    
+    ' pola sterowania: widok, szukaj, motyw, folder docelowy (klik = menu / okno)
+    y = wsV.Rows(3).Top + 4: x = 10
+    Set shp = UiShape(wsV, "ui_view", msoShapeRoundedRectangle, x, y, 180, 30, t.inputBg, t.accent, "VIEW:  " & vw & "   " & ChrW(9660), t.inputFg, 10, wn & "ShowViewMenu", False): x = x + 188
+    Set shp = UiShape(wsV, "ui_search", msoShapeRoundedRectangle, x, y, 290, 30, t.inputBg, t.accent, "SEARCH:  " & IIf(sr = "", "click to type...", sr), t.inputFg, 11, wn & "EditSearch", False)
+    shp.Line.Weight = 2.5: x = x + 298
+    Set shp = UiShape(wsV, "ui_theme", msoShapeRoundedRectangle, x, y, 140, 30, t.inputBg, t.accent, "THEME:  " & th & "   " & ChrW(9660), t.inputFg, 10, wn & "ShowThemeMenu", False): x = x + 148
+    Set shp = UiShape(wsV, "ui_target", msoShapeRoundedRectangle, x, y, 330, 30, t.inputBg, t.accent, "DOWNLOAD TO:  " & IIf(tg = "", "click to choose...", tg), t.inputFg, 10, wn & "ChooseTargetFolder", False)
+    
+    ' przyciski akcji
+    y = wsV.Rows(4).Top + 5: x = 10
+    Dim nms As Variant, cps As Variant, wd As Variant
+    nms = Array("btnUpdateV", "btnNavV", "btnGetFiles")
+    cps = Array("UPDATE DATA", "FOLDER NAVIGATOR", "DOWNLOAD FROM PW")
+    wd = Array(180, 180, 190)
+    For k = 0 To 2
+        Set shp = Nothing
+        Set shp = wsV.Shapes(CStr(nms(k)))
+        If Not shp Is Nothing Then
+            shp.Placement = xlFreeFloating
+            shp.Left = x: shp.Top = y: shp.Width = wd(k): shp.Height = 32
+            shp.TextFrame2.TextRange.Text = CStr(cps(k))
+            shp.ZOrder msoBringToFront
+        End If
+        x = x + wd(k) + 8
+    Next k
+    
+    ' legenda
+    y = wsV.Rows(5).Top + 4: x = 10
+    Set shp = UiShape(wsV, "ui_legend", msoShapeRectangle, x, y, 110, 20, t.panelBg, -1, "COLOR LEGEND", t.cardMuted, 8, "", False)
+    shp.TextFrame2.TextRange.Font.Bold = msoTrue: x = x + 112
+    Dim ct As Variant, cb As Variant
+    ct = Array("Folder", "Changed value", "Deleted from PW", "Regular file")
+    cb = Array(t.folderBg, t.changedBg, t.deletedBg, t.dataBg)
+    For k = 0 To 3
+        Set shp = UiShape(wsV, "ui_chip" & k, msoShapeRectangle, x, y, 130, 20, CLng(cb(k)), t.accent, CStr(ct(k)), t.dataFg, 9, "", True)
+        x = x + 136
+    Next k
+    Set shp = UiShape(wsV, "ui_hint", msoShapeRectangle, x + 10, y, 520, 20, t.panelBg, -1, "Click a folder in column A to filter. Click the header (A8) to show all.", t.cardMuted, 8, "", False)
+    shp.TextFrame2.TextRange.Font.Italic = msoTrue
+    On Error GoTo 0
+End Sub
+
+' --- menu rozwijane: widok / motyw ---
+Public Sub ShowViewMenu()
+    Dim cb As CommandBar, wsDef As Worksheet, r As Long, ctl As CommandBarButton, lastDef As Long, cur As String
+    Set wsDef = ThisWorkbook.Sheets(SH_VIEWS)
+    cur = CStr(ThisWorkbook.Sheets(SH_VIEW).Range(VIEW_SELECTOR).Value)
+    On Error Resume Next
+    Application.CommandBars("PWViewMenu").Delete
+    On Error GoTo 0
+    Set cb = Application.CommandBars.Add("PWViewMenu", msoBarPopup, False, True)
+    lastDef = wsDef.Cells(wsDef.Rows.Count, 1).End(xlUp).Row
+    For r = VIEWS_FIRST_ROW To lastDef
+        If Trim(CStr(wsDef.Cells(r, 1).Value)) <> "" Then
+            Set ctl = cb.Controls.Add(msoControlButton)
+            ctl.Caption = CStr(wsDef.Cells(r, 1).Value)
+            ctl.OnAction = "'" & ThisWorkbook.Name & "'!PickView"
+            ctl.Parameter = CStr(wsDef.Cells(r, 1).Value)
+            If StrComp(ctl.Caption, cur, vbTextCompare) = 0 Then ctl.State = msoButtonDown
+        End If
+    Next r
+    cb.ShowPopup
+End Sub
+
+Public Sub PickView()
+    ThisWorkbook.Sheets(SH_VIEW).Range(VIEW_SELECTOR).Value = CStr(Application.CommandBars.ActionControl.Parameter)   ' zmiana komorki uruchamia BuildView
+End Sub
+
+Public Sub ShowThemeMenu()
+    Dim cb As CommandBar, ctl As CommandBarButton, nm As Variant
+    On Error Resume Next
+    Application.CommandBars("PWThemeMenu").Delete
+    On Error GoTo 0
+    Set cb = Application.CommandBars.Add("PWThemeMenu", msoBarPopup, False, True)
+    For Each nm In Array("Light", "Dark", "Blue")
+        Set ctl = cb.Controls.Add(msoControlButton)
+        ctl.Caption = CStr(nm)
+        ctl.OnAction = "'" & ThisWorkbook.Name & "'!PickTheme"
+        ctl.Parameter = CStr(nm)
+    Next nm
+    cb.ShowPopup
+End Sub
+
+Public Sub PickTheme()
+    ThisWorkbook.Sheets(SH_VIEW).Range(THEME_CELL).Value = CStr(Application.CommandBars.ActionControl.Parameter)
+End Sub
+
+' --- szukaj / folder docelowy ---
+Public Sub EditSearch()
+    Dim ws As Worksheet, v As String
+    Set ws = ThisWorkbook.Sheets(SH_VIEW)
+    v = InputBox("Search phrase (min. 2 characters; leave empty to clear):", "Search", CStr(ws.Range(VIEW_SEARCH).Value))
+    If StrPtr(v) = 0 Then Exit Sub                  ' Cancel
+    ws.Range(VIEW_SEARCH).Value = v                 ' zmiana komorki uruchamia filtr
+    DrawHeader ws
+End Sub
+
+Public Sub ChooseTargetFolder()
+    Dim ws As Worksheet
+    Set ws = ThisWorkbook.Sheets(SH_VIEW)
+    With Application.FileDialog(msoFileDialogFolderPicker)
+        .Title = "Choose the target folder for downloaded files"
+        If .Show = -1 Then ws.Range(TARGET_CELL).Value = .SelectedItems(1)
+    End With
+    DrawHeader ws
 End Sub
