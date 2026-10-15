@@ -14,7 +14,7 @@ Private Sub Workbook_Open()
     EnsureViewButton
     frmNavigator.Show 0
     frmNavigator.DockToView
-    If ActiveSheet.Name <> SH_VIEW Then frmNavigator.Hide     ' nawigator tylko na arkuszu Widok
+    If ActiveSheet.Name <> SH_VIEW Then HideNav     ' nawigator tylko na arkuszu Widok
     On Error GoTo 0
 End Sub
 
@@ -74,7 +74,7 @@ Private Sub Workbook_SheetActivate(ByVal Sh As Object)
         frmNavigator.Show 0
         frmNavigator.DockToView
     Else
-        frmNavigator.Hide
+        HideNav
     End If
 End Sub
 
@@ -85,7 +85,7 @@ End Sub
 
 Private Sub Workbook_Deactivate()
     On Error Resume Next
-    frmNavigator.Hide                               ' inny skoroszyt na wierzchu - schowaj nawigator
+    HideNav                                         ' inny skoroszyt na wierzchu
 End Sub
 
 Private Sub Workbook_Activate()
@@ -94,4 +94,12 @@ Private Sub Workbook_Activate()
         frmNavigator.Show 0
         frmNavigator.DockToView
     End If
+End Sub
+
+' Zamyka nawigator tylko jesli jest zaladowany (kolejne Show buduje drzewo od nowa z aktualnych danych)
+Private Sub HideNav()
+    Dim f As Object
+    For Each f In VBA.UserForms
+        If f.Name = "frmNavigator" Then Unload f: Exit For
+    Next f
 End Sub
