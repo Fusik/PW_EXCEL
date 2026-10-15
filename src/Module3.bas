@@ -26,6 +26,10 @@ Public Sub OnFolderLinkPasted(ByVal Target As Range)
     Static busy As Boolean
     If busy Then Exit Sub
     If Target.Cells.Count > 20 Then Exit Sub        ' ochrona przed kasowaniem/wklejaniem calych kolumn
+    If DownloadBusy() Then                          ' trwa pobieranie w tle - nie startuj kolejnego
+        MsgBox "Pobieranie z ProjectWise juz trwa w tle. Po jego zakonczeniu kliknij AKTUALIZUJ DANE, aby objac nowy link.", vbInformation
+        Exit Sub
+    End If
     busy = True
     Dim c As Range, ok As Boolean, lnk As String
     On Error GoTo Fail

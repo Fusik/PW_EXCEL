@@ -15,6 +15,11 @@ Private Sub Workbook_Open()
     On Error GoTo 0
 End Sub
 
+Private Sub Workbook_BeforeClose(Cancel As Boolean)
+    On Error Resume Next
+    CancelDownloadPoll                              ' zatrzymaj odpytywanie pobierania w tle
+End Sub
+
 ' Automaty: zmiana widoku (Widok!B3) oraz wklejenie linku folderu (Foldery, kolumna B)
 Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
     On Error GoTo Fail

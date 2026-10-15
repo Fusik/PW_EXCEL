@@ -66,3 +66,8 @@ Nazwy arkuszy, układ i kolory są w jednym miejscu: `src/modConfig.bas`.
 - Starsza rewizja o tym samym `DocumentURN` dostaje w `PW Link` dopisek `?version=<VersionSequence>` (klucz musi być unikalny).
 - Dopasowanie po samej nazwie pliku działa tylko dla wierszy bez linku.
 - W arkuszu `Atrybuty` dodaj: `Version`, `VersionSequence` (rewizja/numer wersji), `WorkflowState` (nazwa stanu), opcjonalnie `Revision_number`. Atrybut `State` nie istnieje w tym PW.
+
+## Pobieranie w tle (V1.7)
+`AKTUALIZUJ DANE` uruchamia PowerShella w tle (okno zminimalizowane na pasku zadań) i oddaje Excela użytkownikowi. Pasek stanu pokazuje czas pobierania,
+a gdy skrypt zapisze znacznik `PW_Output.csv.done`, Excel sam wykonuje analizę różnic i odświeża Widok. Zamknięcie okna PowerShell przerywa pobieranie
+(dane w arkuszu nie są zmieniane). Podczas pobierania drugie uruchomienie jest blokowane.

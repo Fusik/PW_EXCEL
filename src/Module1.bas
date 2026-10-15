@@ -5,6 +5,12 @@ Option Explicit                                     ' Wymusza jawną deklarację
 ' WERSJA: V1.2 (Z obsługą tabeli PW_DATA i pełnymi komentarzami)
 ' GLOBALNE ZMIENNE DLA MODUŁU LOGOWANIA
 ' =======================================================================
+Private gBusy As Boolean                            ' True, gdy pobieranie z PW trwa w tle (Excel jest wolny)
+Private gStart As Date
+Private gTxtPath As String, gStructPath As String, gPsPath As String, gCsvPath As String
+Private gNumScopes As Long
+Private gScopes As Variant
+Private gNextPoll As Date
 Private wsLog As Worksheet                          ' Zmienna przechowująca obiekt arkusza z logami
 Private nextLogRow As Long                          ' Zmienna przechowująca numer kolejnego, pustego wiersza do zapisu w logach
 Private logStartRow As Long                         ' Zmienna przechowująca numer wiersza początkowego dla danej sesji uruchomienia
@@ -14,7 +20,15 @@ Private logStartRow As Long                         ' Zmienna przechowująca num
 ' Zarządza całym procesem: od przygotowania plików, przez uruchomienie
 ' skryptu PowerShell, aż po analizę różnicową i zapis logów.
 ' =======================================================================
+Public Function DownloadBusy() As Boolean
+    DownloadBusy = gBusy
+End Function
+
 Sub DownloadFromProjectWise_PWPS()                  ' Publiczny punkt wejścia: chroni stan Excela i raportuje błędy
+    If gBusy Then
+        MsgBox "Pobieranie z ProjectWise juz trwa w tle (okno PowerShell). Poczekaj na zakonczenie.", vbInformation
+        Exit Sub
+    End If
     Dim prevCalc As XlCalculation
     prevCalc = Application.Calculation
     On Error GoTo Fail
@@ -31,6 +45,7 @@ Done:
 Fail:
     Dim errMsg As String
     errMsg = "Error " & Err.Number & ": " & Err.Description
+    gBusy = False
     On Error Resume Next
     If Not wsLog Is Nothing Then AddLogEntry "ERROR", errMsg, "-", "-", "-", "-", CLR_DELETED
     MsgBox "Macro stopped unexpectedly." & vbCrLf & errMsg, vbCritical
@@ -103,19 +118,58 @@ Private Sub RunDownload()                           ' Właściwa logika orkiestr
     csvOutputPath = basePath & "\PW_Output.csv"     ' Zbudowanie pełnej ścieżki pliku CSV
     DeleteIfExists csvOutputPath                    ' Stare wyniki NIE mogą zostać użyte, gdy PowerShell się nie powiedzie (inaczej delta liczyłaby się na starych danych)
     DeleteIfExists structureLogPath
-    RunPowerShellScript psScriptPath, txtFoldersPath, csvOutputPath, structureLogPath ' Uruchomienie skryptu PowerShell w tle
+    DeleteIfExists csvOutputPath & ".done"
+    gStart = startExecTime: gTxtPath = txtFoldersPath: gStructPath = structureLogPath
+    gPsPath = psScriptPath: gCsvPath = csvOutputPath: gNumScopes = numScopes: gScopes = arrCleanScopes
+    RunPowerShellScript psScriptPath, txtFoldersPath, csvOutputPath, structureLogPath ' PowerShell startuje w tle - Excel NIE czeka
+    gBusy = True
+    SchedulePoll
+    Application.StatusBar = "Pobieranie z ProjectWise w tle... Excel jest wolny (okno PowerShell jest na pasku zadan)."
+End Sub
+
+' =======================================================================
+' FAZA 2 (po zakonczeniu PowerShella): analiza roznic, tabela, widok
+' =======================================================================
+Public Sub FinishDownload()
+    Dim prevCalc As XlCalculation
+    prevCalc = Application.Calculation
+    On Error GoTo Fail
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    Application.Calculation = xlCalculationManual
+    RunFinish
+Done:
+    gBusy = False
+    Application.Calculation = prevCalc
+    Application.EnableEvents = True
+    Application.ScreenUpdating = True
+    Application.StatusBar = False
+    Exit Sub
+Fail:
+    Dim errMsg As String
+    errMsg = "Error " & Err.Number & ": " & Err.Description
+    On Error Resume Next
+    If Not wsLog Is Nothing Then AddLogEntry "ERROR", errMsg, "-", "-", "-", "-", CLR_DELETED
+    MsgBox "Macro stopped unexpectedly." & vbCrLf & errMsg, vbCritical
+    Resume Done
+End Sub
+
+Private Sub RunFinish()
+    Dim ws1 As Worksheet, lo As ListObject
+    Set ws1 = ThisWorkbook.Sheets(SH_DATA)
+    Application.StatusBar = "Analiza roznic (delta) w Excelu..."
     
     AddLogEntry "INFO", "Started Delta analysis in Excel...", "-", "-", "-", "-", 0 ' Zapisanie w logach informacji o rozpoczęciu analizy Delta
     
-    ProcessDeltaAnalysis ws1, csvOutputPath, structureLogPath, numScopes, arrCleanScopes ' Wywołanie głównego silnika analizy różnic (CSV vs Excel)
+    ProcessDeltaAnalysis ws1, gCsvPath, gStructPath, gNumScopes, gScopes ' Wywołanie głównego silnika analizy różnic (CSV vs Excel)
     
-    CleanUpFiles txtFoldersPath, psScriptPath, csvOutputPath ' Wywołanie procedury z pytaniem o usunięcie plików tymczasowych
+    CleanUpFiles gTxtPath, gPsPath, gCsvPath ' Wywołanie procedury z pytaniem o usunięcie plików tymczasowych
     
     ' --- ZAPIS CZASU I DATY W KOMÓRCE A8 ---
     Dim endExecTime As Date                         ' Deklaracja zmiennej do przechowywania czasu zakończenia
     Dim durationStr As String                       ' Deklaracja zmiennej do przechowywania czasu trwania w formacie tekstowym
     endExecTime = Now                               ' Zapisanie aktualnej daty i godziny do zmiennej końcowej
-    durationStr = Format(endExecTime - startExecTime, "hh:mm:ss") ' Obliczenie i sformatowanie różnicy czasu do zmiennej
+    durationStr = Format(endExecTime - gStart, "hh:mm:ss") ' Obliczenie i sformatowanie różnicy czasu do zmiennej
     
     ws1.Cells(8, 1).Value = "Last Database Update: " & Format(Now, "yyyy-mm-dd HH:mm:ss") & " | Total Duration: " & durationStr ' Wpisanie podsumowania w A8
     ws1.Cells(8, 1).Font.Bold = True                ' Pogrubienie tekstu w komórce A8
@@ -147,7 +201,47 @@ Private Sub RunDownload()                           ' Właściwa logika orkiestr
     ThisWorkbook.Sheets(SH_VIEW).Activate           ' Glowny arkusz pracy to Widok
     On Error GoTo 0
     MsgBox "Update completed! Data merged. Tabela PW_DATA została odświeżona.", vbInformation ' Wyświetlenie okna z komunikatem sukcesu
-End Sub                                             ' Koniec głównej procedury
+End Sub
+                                             ' Koniec głównej procedury
+
+' =======================================================================
+' POBIERANIE W TLE: odpytywanie, czy PowerShell skonczyl (plik .done)
+' =======================================================================
+Private Sub SchedulePoll()
+    gNextPoll = Now + TimeSerial(0, 0, 2)
+    Application.OnTime gNextPoll, "'" & ThisWorkbook.Name & "'!PollDownload"
+End Sub
+
+Public Sub CancelDownloadPoll()                     ' wywolywane przy zamykaniu skoroszytu
+    On Error Resume Next
+    If gBusy Then Application.OnTime gNextPoll, "'" & ThisWorkbook.Name & "'!PollDownload", , False
+    gBusy = False
+End Sub
+
+Public Sub PollDownload()
+    If Not gBusy Then Exit Sub
+    Dim fso As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If fso.FileExists(gCsvPath & ".done") Then
+        FinishDownload
+        Exit Sub
+    End If
+    Application.StatusBar = "Pobieranie z ProjectWise w tle: " & Format(Now - gStart, "nn:ss") & " - Excel jest wolny, mozesz pracowac."
+    If Now - gStart > TimeSerial(0, 0, 15) And Not PsRunning() Then   ' okno PowerShell zamkniete lub skrypt padl bez ukonczenia
+        gBusy = False
+        Application.StatusBar = False
+        MsgBox "Pobieranie zostalo przerwane (okno PowerShell zamkniete albo blad logowania/skryptu). Dane w arkuszu nie zostaly zmienione.", vbExclamation
+        Exit Sub
+    End If
+    SchedulePoll
+End Sub
+
+Private Function PsRunning() As Boolean
+    On Error Resume Next
+    Dim n As Long
+    n = GetObject("winmgmts:\\.\root\cimv2").ExecQuery("SELECT ProcessId FROM Win32_Process WHERE Name='powershell.exe' AND CommandLine LIKE '%PW_GetFiles.ps1%'").Count
+    If Err.Number <> 0 Then PsRunning = True Else PsRunning = (n > 0)    ' bez WMI zakladamy, ze dziala
+End Function
 
 Sub ShowNavigator()                                 ' Procedura wywołująca formularz nawigacyjny (UserForm)
     On Error Resume Next                            ' Ignorowanie ewentualnych błędów (np. gdy formularz nie istnieje)
@@ -494,8 +588,9 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String) 
     psFile.WriteLine "$globalWatch.Stop()"          ' Zapis kodu PS: Zatrzymanie głównego timera terminalowego
     psFile.WriteLine "Write-Host '================================' -ForegroundColor DarkCyan" ' Zapis kodu PS: Dodanie ostatniego wizualnego oddzielenia okna
     psFile.WriteLine "Write-Host ('[TIMER] TOTAL EXECUTION TIME: ' + $globalWatch.Elapsed.ToString('hh\:mm\:ss')) -ForegroundColor Magenta" ' Zapis kodu PS: Informacja w oknie CMD o długości trwania skanowania bazy
-    psFile.WriteLine "Write-Host 'Done! Window will close automatically in 10 seconds...' -ForegroundColor Green" ' Zapis kodu PS: Informacja o zautomatyzowanym zamknięciu, okno po prostu powiadomiło że zaraz "gaśnie"
-    psFile.WriteLine "Start-Sleep -Seconds 10"      ' Zapis kodu PS: Opóźnienie zamknięcia procesu powłoki, by dało się przeczytać czas
+    psFile.WriteLine "Set-Content -Path ($OutputFile + '.done') -Value 'done'" ' Znacznik zakonczenia dla Excela (pobieranie w tle)
+    psFile.WriteLine "Write-Host 'Done! Window will close automatically in 3 seconds...' -ForegroundColor Green" ' Zapis kodu PS: Informacja o zautomatyzowanym zamknięciu, okno po prostu powiadomiło że zaraz "gaśnie"
+    psFile.WriteLine "Start-Sleep -Seconds 3"      ' Zapis kodu PS: Opóźnienie zamknięcia procesu powłoki, by dało się przeczytać czas
     psFile.Close                                    ' VBA: Ostateczne zapisanie wygenerowanego kodu w pliku .ps1 i zwolnienie uchwytu
 End Sub                                             ' Zakończenie modułu kodującego plik
 
@@ -504,7 +599,7 @@ Private Sub RunPowerShellScript(psPath As String, txtPath As String, csvPath As 
     Set wsh = CreateObject("WScript.Shell")         ' Zainicjowanie interfejsu systemu (WScript do powłoki)
     Dim psCommand As String                         ' Zmienna przetrzymująca wywołanie polecenia dla konsoli
     psCommand = "powershell.exe -ExecutionPolicy Bypass -File """ & psPath & """ -InputFile """ & txtPath & """ -OutputFile """ & csvPath & """ -LogFile """ & logPath & """" ' Stworzenie instrukcji wyłączającej zasady bezpieczeństwa lokalnego skryptu oraz podającej mu 3 pliki jako parametry wejściowe/wyjściowe
-    wsh.Run psCommand, 1, True                      ' Odpalenie zapytania w widocznym oknie (1) wymuszając oczekiwanie Excela na koniec jego działania (True)
+    wsh.Run psCommand, 7, False                      ' Odpalenie zapytania w widocznym oknie (1) wymuszając oczekiwanie Excela na koniec jego działania (True)
 End Sub                                             ' Zakończenie wywołania środowiska OS
 
 ' =======================================================================
@@ -1009,6 +1104,7 @@ Private Sub CleanUpFiles(txtPath As String, psPath As String, csvPath As String)
         fso.DeleteFile txtPath                      ' Strzel po poleceniu zniszczenia pliku tekstowego z Drzewem Scopes z Dysku C:\
         fso.DeleteFile psPath                       ' Usuń również plik Generatora skryptu Powershell *.ps1
         fso.DeleteFile csvPath                      ' Wykasuj ogromny plik CSV ze strumienia by zwolnić potworne zapychacze pamięci po całej robocie
+        fso.DeleteFile csvPath & ".done"
         On Error GoTo 0                             ' Ściągnij spadochron błędu. Od teraz powrót by wyrzucało makro po normalnemu
     End If                                          ' Zakończenie zgody usera od wariantu MsgBox
 End Sub                                             ' Procedura poszła do końca.
