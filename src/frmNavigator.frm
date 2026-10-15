@@ -215,11 +215,20 @@ Private Sub TreeView1_NodeClick(ByVal Node As MSComctlLib.Node)
     ' Skok do wybranego wiersza
     If Node.Tag <> "" And IsNumeric(Node.Tag) Then
         targetRow = CLng(Node.Tag)
-        ws.Activate
-        ws.rows(targetRow).Select
-        
-        ActiveWindow.ScrollRow = targetRow - 10
-        If ActiveWindow.ScrollRow < 1 Then ActiveWindow.ScrollRow = 1
+        Dim wsV As Worksheet, vRow As Long
+        Set wsV = ThisWorkbook.Sheets(SH_VIEW)
+        vRow = targetRow - DATA_HEADER_ROW + VIEW_HEADER_ROW        ' wiersz Baza_PW -> wiersz w Widok (kopia 1:1)
+        If StrComp(CStr(wsV.Cells(vRow, 1).Value), CStr(ws.Cells(targetRow, 1).Value), vbTextCompare) = 0 And Not wsV.Rows(vRow).Hidden Then
+            wsV.Activate                                            ' glowny arkusz pracy - Widok
+            wsV.Rows(vRow).Select
+            ActiveWindow.ScrollRow = vRow - 10
+            If ActiveWindow.ScrollRow < VIEW_HEADER_ROW + 1 Then ActiveWindow.ScrollRow = VIEW_HEADER_ROW + 1
+        Else
+            ws.Activate                                             ' widok nie pokazuje tego wiersza (kolumna A inna lub ukryty filtrem) - skok w Baza_PW
+            ws.Rows(targetRow).Select
+            ActiveWindow.ScrollRow = targetRow - 10
+            If ActiveWindow.ScrollRow < 1 Then ActiveWindow.ScrollRow = 1
+        End If
     End If
     
     ' Zwijanie/Rozwijanie folderów po kliknięciu w samą nazwę

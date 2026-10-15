@@ -67,6 +67,7 @@ Public Sub BuildView()
     Application.ScreenUpdating = False
     Dim old As Range
     Set old = wsV.Range(wsV.Rows(VIEW_HEADER_ROW), wsV.Rows(wsV.Rows.Count))
+    old.EntireRow.Hidden = False                    ' po filtrowaniu Szukaj - odkryj wiersze przed przebudowa
     old.Hyperlinks.Delete
     old.Clear
     old.ClearComments
@@ -80,6 +81,49 @@ Public Sub BuildView()
     End If
     wsV.Range("D3").Value = "Kolumn: " & n & "  |  Wierszy: " & IIf(lastR > DATA_HEADER_ROW, lastR - DATA_HEADER_ROW, 0) & "  |  Odswiezono: " & Format(Now, "yyyy-mm-dd hh:nn")
     wsV.Range("D4").Value = IIf(missing = "", "", "Nie znaleziono kolumn: " & Left(missing, Len(missing) - 2))
+    wsV.Range("A7").Value = CStr(wsD.Range("A8").Value)    ' status ostatniej aktualizacji z Baza_PW
+    FilterRows wsV, VIEW_HEADER_ROW, CStr(wsV.Range(VIEW_SEARCH).Value)   ' zachowaj aktywne wyszukiwanie
+    Application.ScreenUpdating = True
+End Sub
+
+' Szukaj w Baza_PW (pole tekstowe na tym arkuszu)
+Public Sub ApplySearch(ByVal txt As String)
+    FilterRows ThisWorkbook.Sheets(SH_DATA), DATA_HEADER_ROW, txt
+End Sub
+
+' Pokazuje tylko wiersze zawierajace fraze (w dowolnej kolumnie); wiersz folderu (niebieski) widoczny, gdy pasuje on sam lub ktorys jego plik
+Public Sub FilterRows(ws As Worksheet, ByVal headerRow As Long, ByVal txt As String)
+    Dim lastR As Long, lastC As Long, r As Long, c As Long, n As Long
+    lastR = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+    If lastR <= headerRow Then Exit Sub
+    txt = Trim(txt)
+    Application.ScreenUpdating = False
+    ws.Rows(headerRow + 1 & ":" & lastR).Hidden = False
+    If Len(txt) >= 2 Then
+        lastC = ws.Cells(headerRow, ws.Columns.Count).End(xlToLeft).Column
+        Dim v As Variant, hit() As Boolean, isFolder() As Boolean, anyHit As Boolean
+        v = ws.Range(ws.Cells(headerRow + 1, 1), ws.Cells(lastR, lastC)).Value
+        n = UBound(v, 1)
+        ReDim hit(1 To n): ReDim isFolder(1 To n)
+        For r = 1 To n
+            isFolder(r) = (ws.Cells(headerRow + r, 1).Interior.Color = CLR_FOLDER)
+            For c = 1 To lastC
+                If Not IsError(v(r, c)) Then
+                    If InStr(1, CStr(v(r, c)), txt, vbTextCompare) > 0 Then hit(r) = True: Exit For
+                End If
+            Next c
+        Next r
+        anyHit = False
+        For r = n To 1 Step -1                      ' od dolu: plik widoczny, gdy pasuje; folder - gdy pasuje on lub ktorys jego plik
+            If isFolder(r) Then
+                ws.Rows(headerRow + r).Hidden = Not (anyHit Or hit(r))
+                anyHit = False
+            Else
+                ws.Rows(headerRow + r).Hidden = Not hit(r)
+                If hit(r) Then anyHit = True
+            End If
+        Next r
+    End If
     Application.ScreenUpdating = True
 End Sub
 

@@ -34,10 +34,11 @@ Public Const ATTRS_SYSTEM_DEFAULTS As String = "Version,VersionSequence,Workflow
 ' --- Automat: po wklejeniu linku w arkuszu Foldery wykryj atrybuty, a potem pobierz dane ---
 Public Const AUTO_DOWNLOAD_AFTER_PASTE As Boolean = True
 
-' --- Widoki: arkusz Widoki (A = nazwa, B = kolumny, C = opis; od wiersza 6), arkusz Widok (wybor w B3, tabela od wiersza 5) ---
+' --- Widoki: arkusz Widoki (A = nazwa, B = kolumny, C = opis; od wiersza 6), arkusz Widok (wybor w B3, szukaj w B4, tabela od wiersza 8) ---
 Public Const VIEWS_FIRST_ROW As Long = 6
 Public Const VIEW_SELECTOR As String = "B3"
-Public Const VIEW_HEADER_ROW As Long = 5
+Public Const VIEW_HEADER_ROW As Long = 8          ' naglowek tabeli w arkuszu Widok; dane od wiersza 9
+Public Const VIEW_SEARCH As String = "B4"           ' pole Szukaj w arkuszu Widok
 
 ' --- Układ arkusza "Baza_PW" ---
 Public Const DATA_HEADER_ROW As Long = 11           ' Wiersz nagłówków; dane od następnego wiersza

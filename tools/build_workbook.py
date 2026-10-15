@@ -146,7 +146,7 @@ def sheet_xml(sh, widths, tab, view='', cf='', dv='', extra_head='', gridlines=F
 sst = re.findall(r'<si><t[^>]*>(.*?)</t></si>', T('xl/sharedStrings.xml'), re.S)
 unesc = lambda s: s.replace('&amp;', '&')
 L = {i: unesc(v) for i, v in enumerate(sst)}
-links = [(L[1], 'Deliverables dla JDO Site – 03-HR'), (L[0], 'Deliverables dla Edvance – 03-HR'), (L[8], 'Procedury i narzędzia (oficjalne)'),
+links = [('pw:\\\\pa7PJWW2K01.egis.racine.local:ENQE01301_SZC_Sizewell_EPR\\Documents\\SZC_Sizewell_EPR\\01-ICOSH\\04-INTERNAL DOCUMENTS\\04.1-DOCUMENT\\', 'SZC Sizewell EPR – 01-ICOSH / 04.1-DOCUMENT'), (L[1], 'Deliverables dla JDO Site – 03-HR'), (L[0], 'Deliverables dla Edvance – 03-HR'), (L[8], 'Procedury i narzędzia (oficjalne)'),
          (L[10], 'Deliverables dla JDO Site – 02-HK'), (L[11], 'Deliverables dla JDO Site – 04-HL')]
 sample_folder = L[12]
 
@@ -228,13 +228,13 @@ d1 = T('xl/drawings/drawing1.xml')
 tb = d1[d1.index('<mc:AlternateContent'):d1.index('</mc:AlternateContent>') + len('</mc:AlternateContent>')]
 tb = tb.replace('<xdr:col>0</xdr:col><xdr:colOff>790575</xdr:colOff><xdr:row>5</xdr:row><xdr:rowOff>47625</xdr:rowOff>', '<xdr:col>0</xdr:col><xdr:colOff>47625</xdr:colOff><xdr:row>5</xdr:row><xdr:rowOff>19050</xdr:rowOff>')
 tb = tb.replace('<xdr:col>0</xdr:col><xdr:colOff>7477125</xdr:colOff><xdr:row>5</xdr:row><xdr:rowOff>628650</xdr:rowOff>', '<xdr:col>0</xdr:col><xdr:colOff>3900000</xdr:colOff><xdr:row>5</xdr:row><xdr:rowOff>311150</xdr:rowOff>')
-def button(i, name, macro, text, c1, c2, r1, r2, color):
-    return ('<xdr:twoCellAnchor editAs="oneCell"><xdr:from><xdr:col>%d</xdr:col><xdr:colOff>%d</xdr:colOff><xdr:row>%d</xdr:row><xdr:rowOff>%d</xdr:rowOff></xdr:from>'
+def button(i, name, macro, text, c1, c2, r1, r2, color, edit='oneCell'):
+    return ('<xdr:twoCellAnchor editAs="%s"><xdr:from><xdr:col>%d</xdr:col><xdr:colOff>%d</xdr:colOff><xdr:row>%d</xdr:row><xdr:rowOff>%d</xdr:rowOff></xdr:from>'
             '<xdr:to><xdr:col>%d</xdr:col><xdr:colOff>%d</xdr:colOff><xdr:row>%d</xdr:row><xdr:rowOff>%d</xdr:rowOff></xdr:to>'
             '<xdr:sp macro="[0]!%s" textlink=""><xdr:nvSpPr><xdr:cNvPr id="%d" name="%s"/><xdr:cNvSpPr/></xdr:nvSpPr><xdr:spPr><a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 20000"/></a:avLst></a:prstGeom>'
             '<a:solidFill><a:srgbClr val="%s"/></a:solidFill><a:ln><a:noFill/></a:ln></xdr:spPr><xdr:txBody><a:bodyPr vertOverflow="clip" horzOverflow="clip" rtlCol="0" anchor="ctr"/><a:lstStyle/>'
             '<a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="pl-PL" sz="1100" b="1"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:rPr><a:t>%s</a:t></a:r></a:p></xdr:txBody></xdr:sp><xdr:clientData/></xdr:twoCellAnchor>'
-            % (c1[0], c1[1], r1[0], r1[1], c2[0], c2[1], r2[0], r2[1], macro, i, name, color, escape(text)))
+            % (edit, c1[0], c1[1], r1[0], r1[1], c2[0], c2[1], r2[0], r2[1], macro, i, name, color, escape(text)))
 hdr_d = d1[:d1.index('<xdr:twoCellAnchor')]
 new_d1 = (hdr_d + button(2, 'btnUpdate', 'DownloadFromProjectWise_PWPS', 'AKTUALIZUJ DANE', (0, 47625), (0, 1900000), (2, 19050), (3, 311150), '1F7A3D') +
           button(3, 'btnNavigator', 'ShowNavigator', 'NAWIGATOR FOLDERÓW', (0, 2000000), (0, 3900000), (2, 19050), (3, 311150), '2F5597') + tb + '</xdr:wsDr>')
@@ -261,12 +261,21 @@ for i in range(20):
 files['xl/worksheets/sheet7.xml'] = sheet_xml(w, [30, 70, 80], '7030A0', '<pane ySplit="5" topLeftCell="A6" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="A6" sqref="A6"/>').encode('utf-8')
 
 v = Sheet()
-banner(v, 12, 'Widok', 'Baza_PW wyświetlona wg wybranego widoku. To kopia – zmiany rób w Baza_PW, a widoki definiuj w arkuszu Widoki.')
-v.put(1, 3, 'Widok:', 'lab', ht=26); v.put(2, 3, 'Wszystko', 'in_l')
-v.put(1, 4, None, 'note', ht=18); v.put(2, 4, 'Wybierz widok z listy (strzałka przy B3).', 'note')
-v.put(1, 5, None, 'text', ht=4)
+banner(v, 12, 'PW Tracker – Widok', 'Główny arkusz pracy: Baza_PW wyświetlona wg wybranego widoku. To kopia – dane pobiera makro, widoki definiujesz w arkuszu Widoki.')
+v.put(1, 3, 'Widok:', 'lab', ht=24); v.put(2, 3, 'Wszystko', 'in_l')
+v.put(1, 4, 'Szukaj:', 'lab', ht=24); v.put(2, 4, None, 'search'); v.put(3, 4, '← wpisz frazę (min. 2 znaki) – lista filtruje się od razu po dowolnej kolumnie', 'note')
+v.put(1, 5, None, 'text', ht=38)
+v.put(1, 6, 'Legenda kolorów  →', 'legend', ht=20); v.put(2, 6, 'Niebieski wiersz = folder', 'sw_blue'); v.put(3, 6, 'Żółta komórka = zmiana', 'sw_yel'); v.put(4, 6, 'Czerwony wiersz = usunięty z PW', 'sw_red')
+v.put(1, 7, 'Last Database Update: – (aktualizacja jeszcze nie była uruchamiana)', 'status', ht=22)
+v.put(1, 8, 'Brak danych – wklej link w arkuszu Foldery albo kliknij AKTUALIZUJ DANE.', 'hdr', ht=24)
+for cc in range(2, 7): v.put(cc, 8, None, 'hdr')
+v.merge(1, 8, 5, 8)
 v_dv = '<dataValidations count="1"><dataValidation type="list" allowBlank="0" showErrorMessage="1" errorTitle="Widok" error="Wybierz widok z listy (zdefiniowane w arkuszu Widoki)." sqref="B3"><formula1>Widoki!$A$6:$A$25</formula1></dataValidation></dataValidations>'
-files['xl/worksheets/sheet8.xml'] = sheet_xml(v, [30, 36, 22, 40, 18, 18, 18, 18, 18, 18, 18, 18], '7030A0', '<pane ySplit="5" topLeftCell="A6" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="B3" sqref="B3"/>', dv=v_dv, gridlines=True).encode('utf-8')
+files['xl/worksheets/sheet8.xml'] = sheet_xml(v, [30, 36, 28, 40, 18, 18, 18, 18, 18, 18, 18, 18], '7030A0', '<pane ySplit="8" topLeftCell="A9" activePane="bottomLeft" state="frozen"/><selection pane="bottomLeft" activeCell="B3" sqref="B3"/>', dv=v_dv, gridlines=True, tail_extra='<drawing r:id="rId1"/>').replace('<sheetView ', '<sheetView tabSelected="1" ', 1).encode('utf-8')
+files['xl/worksheets/_rels/sheet8.xml.rels'] = b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing" Target="../drawings/drawing3.xml"/></Relationships>'
+files['xl/drawings/drawing3.xml'] = (d2[:d2.index('<xdr:twoCellAnchor')] +
+    button(2, 'btnUpdateV', 'DownloadFromProjectWise_PWPS', 'AKTUALIZUJ DANE', (0, 47625), (0, 1950000), (4, 38100), (4, 450000), '1F7A3D', 'absolute') +
+    button(3, 'btnNavV', 'ShowNavigator', 'NAWIGATOR FOLDERÓW', (1, 47625), (1, 2250000), (4, 38100), (4, 450000), '2F5597', 'absolute') + '</xdr:wsDr>').encode('utf-8')
 
 # ------------------------------------------------------------------ Instrukcja (nowy arkusz)
 I = Sheet()
@@ -288,8 +297,8 @@ h2('1.  Szybki start (proces jest automatyczny)')
 th('Krok', 'Co zrobić', 'Efekt')
 tr('1. Foldery', 'Wklej link do folderu ProjectWise do kolumny B (format: patrz punkt 3). Zaloguj się w oknie PowerShell (Bentley IMS), jeśli o to poprosi.', 'Makro samo wykrywa atrybuty folderu (arkusz Diagnostyka) i dopisuje je do arkusza Atrybuty.', link='Foldery')
 tr('2. Atrybuty', 'Opcjonalnie: w kolumnie B przełącz TAK/NIE przy atrybutach, które mają (nie) trafić do bazy.', 'Tylko atrybuty z TAK stają się kolumnami.', link='Atrybuty')
-tr('3. Baza_PW', 'Po wykryciu atrybutów dane pobierają się same. Ręcznie: przycisk „AKTUALIZUJ DANE”. Poczekaj, aż okno PowerShell się zamknie.', 'Lista plików (każda rewizja w osobnym wierszu); zmiany podświetlone.', link='Baza_PW')
-tr('4. Widok', 'Wybierz widok w komórce B3 (np. Rewizje, Linki). Własne widoki definiujesz w arkuszu Widoki.', 'Tabela z wybranymi kolumnami w wybranej kolejności.', link='Widok')
+tr('3. Widok', 'Po wykryciu atrybutów dane pobierają się same. Ręcznie: przycisk „AKTUALIZUJ DANE” w arkuszu Widok. Poczekaj, aż okno PowerShell się zamknie.', 'Lista plików (każda rewizja w osobnym wierszu); zmiany podświetlone.', link='Widok')
+tr('4. Widok', 'Pracuj w arkuszu Widok: wybierz widok w B3 (np. Rewizje, Linki), szukaj w B4, „NAWIGATOR FOLDERÓW” pokazuje drzewo i skacze do pliku. Własne widoki definiujesz w arkuszu Widoki.', 'Tabela z wybranymi kolumnami w wybranej kolejności.', link='Widok')
 tr('5. Log', 'Pełna historia zmian (ADDED / CHANGED / DELETED). Każdy przebieg to osobna grupa wierszy – rozwiń plusem po lewej.', 'Ślad audytowy.', link='Log')
 
 h2('2.  Arkusze – do czego służą i co w nich wpisać')
@@ -297,8 +306,8 @@ th('Arkusz', 'Do czego służy', 'Co wpisać / uwagi')
 tr('Foldery', 'Lista folderów PW do skanowania.', 'A: TAK/NIE · B: link do folderu (pw:\\\\…) – wklejenie uruchamia automat · C: opis. Dane od wiersza 6. Błędny link podświetla się na czerwono.', link='Foldery')
 tr('Atrybuty', 'Lista atrybutów PW (uzupełnia się sama).', 'A: nazwa · B: Pobierać TAK/NIE · C: typ (ATRYBUT = atrybut projektu, SYSTEM = właściwość PW) · D: przykład · E: Twoje notatki. Nic nie jest kasowane przy kolejnym wykryciu.', link='Atrybuty')
 tr('Widoki', 'Szablony tabeli: które kolumny i w jakiej kolejności.', 'A: nazwa widoku · B: kolumny po przecinku (nazwy nagłówków lub litery, np. A, B, F, L, TK) · C: opis. Patrz punkt 5.', link='Widoki')
-tr('Baza_PW', 'WYNIK – pełna lista plików z atrybutami, pogrupowana w foldery.', 'Nie edytuj ręcznie kolumn A–E – makro nadpisuje je przy każdej aktualizacji. Własne kolumny dopisuj na prawo od atrybutów.', link='Baza_PW')
-tr('Widok', 'Baza_PW wyświetlona wg wybranego widoku.', 'Tylko B3 (lista wyboru). To kopia – odświeża się po zmianie widoku i po każdej aktualizacji danych.', link='Widok')
+tr('Baza_PW', 'BAZA – pełna lista plików z atrybutami, pogrupowana w foldery (źródło dla widoków).', 'Traktuj jak bazę danych: nie edytuj ręcznie, makro nadpisuje ją przy każdej aktualizacji. Do pracy służy arkusz Widok.', link='Baza_PW')
+tr('Widok', 'GŁÓWNY ARKUSZ PRACY: Baza_PW wyświetlona wg wybranego widoku, z przyciskami, wyszukiwaniem i legendą.', 'B3 – wybór widoku, B4 – szukaj. To kopia – odświeża się po zmianie widoku i po każdej aktualizacji danych.', link='Widok')
 tr('Diagnostyka', 'Atrybuty jednego pliku z ostatnio wykrywanego folderu.', 'Tylko do odczytu; zawartość jest kasowana przy każdym wykryciu.', link='Diagnostyka')
 tr('Log', 'Historia zmian ze wszystkich aktualizacji.', 'Tylko do odczytu. Nie usuwaj nagłówka w wierszu 1.', link='Log')
 
@@ -360,13 +369,13 @@ tr('Makra nie działają', 'Plik zablokowany po pobraniu.', 'Właściwości plik
 I.merge(2, 3, 4, 3)
 I.put(2, 3, 'Wersja skoroszytu: V1.6  ·  Wystarczy wkleić link w arkuszu Foldery – resztę robi makro. Własne ustawienia: Atrybuty (TAK/NIE) i Widoki.', 'note', ht=22)
 I.put(3, 3, None, 'note'); I.put(4, 3, None, 'note')
-files['xl/worksheets/sheet6.xml'] = sheet_xml(I, W, '1F3864', '<selection activeCell="B6" sqref="B6"/>', landscape=False).replace('<sheetView showGridLines="0" ', '<sheetView showGridLines="0" tabSelected="1" ').encode('utf-8')
+files['xl/worksheets/sheet6.xml'] = sheet_xml(I, W, '1F3864', '<selection activeCell="B6" sqref="B6"/>', landscape=False).encode('utf-8')
 
 # ------------------------------------------------------------------ workbook-level
 wb = T('xl/workbook.xml')
 wb = re.sub(r'<sheets>.*?</sheets>',
-            '<sheets><sheet name="Instrukcja" sheetId="9" r:id="rId11"/><sheet name="Foldery" sheetId="2" r:id="rId2"/><sheet name="Atrybuty" sheetId="3" r:id="rId3"/><sheet name="Widoki" sheetId="10" r:id="rId12"/>'
-            '<sheet name="Baza_PW" sheetId="8" r:id="rId1"/><sheet name="Widok" sheetId="11" r:id="rId13"/><sheet name="Diagnostyka" sheetId="4" r:id="rId4"/><sheet name="Log" sheetId="7" r:id="rId5"/></sheets>', wb, flags=re.S)
+            '<sheets><sheet name="Widok" sheetId="11" r:id="rId13"/><sheet name="Instrukcja" sheetId="9" r:id="rId11"/><sheet name="Foldery" sheetId="2" r:id="rId2"/><sheet name="Atrybuty" sheetId="3" r:id="rId3"/><sheet name="Widoki" sheetId="10" r:id="rId12"/>'
+            '<sheet name="Baza_PW" sheetId="8" r:id="rId1"/><sheet name="Diagnostyka" sheetId="4" r:id="rId4"/><sheet name="Log" sheetId="7" r:id="rId5"/></sheets>', wb, flags=re.S)
 wb = wb.replace('activeTab="3"', 'activeTab="0"')
 files['xl/workbook.xml'] = wb.encode('utf-8')
 rels = T('xl/_rels/workbook.xml.rels')
@@ -376,11 +385,12 @@ files['xl/_rels/workbook.xml.rels'] = rels.encode('utf-8')
 ct = T('[Content_Types].xml')
 ct = re.sub(r'<Override PartName="/xl/calcChain.xml"[^>]*/>', '', ct)
 ct = ct.replace('<Override PartName="/xl/theme/theme1.xml"', '<Override PartName="/xl/worksheets/sheet6.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet7.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/worksheets/sheet8.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/theme/theme1.xml"')
+ct = ct.replace('<Override PartName="/xl/theme/theme1.xml"', '<Override PartName="/xl/drawings/drawing3.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/><Override PartName="/xl/theme/theme1.xml"', 1)
 files['[Content_Types].xml'] = ct.encode('utf-8')
 del files['xl/calcChain.xml']
 app = T('docProps/app.xml')
 app = app.replace('<vt:i4>5</vt:i4>', '<vt:i4>8</vt:i4>')
-app = re.sub(r'<TitlesOfParts>.*?</TitlesOfParts>', '<TitlesOfParts><vt:vector size="8" baseType="lpstr"><vt:lpstr>Instrukcja</vt:lpstr><vt:lpstr>Foldery</vt:lpstr><vt:lpstr>Atrybuty</vt:lpstr><vt:lpstr>Widoki</vt:lpstr><vt:lpstr>Baza_PW</vt:lpstr><vt:lpstr>Widok</vt:lpstr><vt:lpstr>Diagnostyka</vt:lpstr><vt:lpstr>Log</vt:lpstr></vt:vector></TitlesOfParts>', app, flags=re.S)
+app = re.sub(r'<TitlesOfParts>.*?</TitlesOfParts>', '<TitlesOfParts><vt:vector size="8" baseType="lpstr"><vt:lpstr>Widok</vt:lpstr><vt:lpstr>Instrukcja</vt:lpstr><vt:lpstr>Foldery</vt:lpstr><vt:lpstr>Atrybuty</vt:lpstr><vt:lpstr>Widoki</vt:lpstr><vt:lpstr>Baza_PW</vt:lpstr><vt:lpstr>Diagnostyka</vt:lpstr><vt:lpstr>Log</vt:lpstr></vt:vector></TitlesOfParts>', app, flags=re.S)
 files['docProps/app.xml'] = app.encode('utf-8')
 
 with zipfile.ZipFile(DST, 'w', zipfile.ZIP_DEFLATED) as z:

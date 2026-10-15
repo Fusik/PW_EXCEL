@@ -24,6 +24,11 @@ Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
             BuildView
             Application.EnableEvents = True
         End If
+        If Not Intersect(Target, Sh.Range(VIEW_SEARCH)) Is Nothing Then
+            Application.EnableEvents = False
+            FilterRows Sh, VIEW_HEADER_ROW, CStr(Sh.Range(VIEW_SEARCH).Value)
+            Application.EnableEvents = True
+        End If
     ElseIf Sh.Name = SH_FOLDERS Then
         If Not Intersect(Target, Sh.Range(Sh.Cells(FOLDERS_FIRST_ROW, FOLDERS_LINK_COL), Sh.Cells(Sh.Rows.Count, FOLDERS_LINK_COL))) Is Nothing Then
             OnFolderLinkPasted Intersect(Target, Sh.Range(Sh.Cells(FOLDERS_FIRST_ROW, FOLDERS_LINK_COL), Sh.Cells(Sh.Rows.Count, FOLDERS_LINK_COL)))

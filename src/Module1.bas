@@ -143,7 +143,9 @@ Private Sub RunDownload()                           ' Właściwa logika orkiestr
     On Error GoTo 0
     AddLogEntry "INFO", "OPERATION COMPLETED", "-", "-", "-", "-", 0 ' Zapisanie w logach informacji o pomyślnym zakończeniu makra
     wsLog.Columns("A:G").AutoFit                    ' Automatyczne dopasowanie szerokości kolumn w arkuszu logów
-    ws1.Activate                                    ' Aktywowanie arkusza 1 na sam koniec działania makra
+    On Error Resume Next
+    ThisWorkbook.Sheets(SH_VIEW).Activate           ' Glowny arkusz pracy to Widok
+    On Error GoTo 0
     MsgBox "Update completed! Data merged. Tabela PW_DATA została odświeżona.", vbInformation ' Wyświetlenie okna z komunikatem sukcesu
 End Sub                                             ' Koniec głównej procedury
 
@@ -980,43 +982,6 @@ Private Sub MarkDeletedItems(ws1 As Worksheet, urnCol As Long, pathCol As Long, 
 SkipRow:                                            ' Zakotwiczenie punktu powrotnego ucieczki Goto (W przypadku gdy plik miał np puste wiersze/zepsute szare brudy nie od bazy a od użytkonwika i nie był nawet brany pod uwagę "Dziadostwo Ręczne - Zepsuta Nazwa"). GOTO Rzuca z góry kod tutaj z pominięciem setki linijek na twardo
     Next rExcel                                     ' Zapętlij dla Excela (Przejdź z powrotem by testować Mark Delete starych plików do usunięcia z kosza (do następnego rExcel wyżej do końca maxR na dole pliku)).
 End Sub                                             ' Kaskadowe opuszczenie algorytmu weryfikacyjnego i Delta z powrotem.
-
-Public Sub ApplySearch(ByVal txt As String)         ' Pokazuje tylko wiersze zawierajace fraze (w dowolnej kolumnie); folder widoczny, gdy ma pasujacy plik
-    Dim ws As Worksheet, lastR As Long, lastC As Long, r As Long, c As Long, n As Long
-    Set ws = ThisWorkbook.Sheets(SH_DATA)
-    lastR = ws.Cells(ws.rows.count, 1).End(xlUp).Row
-    If lastR <= DATA_HEADER_ROW Then Exit Sub
-    txt = Trim(txt)
-    Application.ScreenUpdating = False
-    ws.rows(DATA_HEADER_ROW + 1 & ":" & lastR).Hidden = False
-    If Len(txt) >= 2 Then
-        lastC = ws.Cells(DATA_HEADER_ROW, ws.Columns.count).End(xlToLeft).Column
-        Dim v As Variant
-        v = ws.Range(ws.Cells(DATA_HEADER_ROW + 1, 1), ws.Cells(lastR, lastC)).Value
-        n = UBound(v, 1)
-        Dim hit() As Boolean, isFolder() As Boolean, anyHit As Boolean
-        ReDim hit(1 To n): ReDim isFolder(1 To n)
-        For r = 1 To n
-            isFolder(r) = (Trim(CStr(v(r, 2))) = "" And Trim(CStr(v(r, 1))) <> "")
-            For c = 1 To lastC
-                If Not IsError(v(r, c)) Then
-                    If InStr(1, CStr(v(r, c)), txt, vbTextCompare) > 0 Then hit(r) = True: Exit For
-                End If
-            Next c
-        Next r
-        anyHit = False
-        For r = n To 1 Step -1                      ' Od dolu: plik pasuje -> widoczny; folder widoczny, jesli pasuje on sam lub ktorykolwiek jego plik
-            If isFolder(r) Then
-                ws.rows(DATA_HEADER_ROW + r).Hidden = Not (anyHit Or hit(r))
-                anyHit = False
-            Else
-                ws.rows(DATA_HEADER_ROW + r).Hidden = Not hit(r)
-                If hit(r) Then anyHit = True
-            End If
-        Next r
-    End If
-    Application.ScreenUpdating = True
-End Sub
 
 Public Sub StyleHeader(rng As Range)                ' Wspólny, profesjonalny styl nagłówków tabel
     With rng

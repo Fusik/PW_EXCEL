@@ -3,7 +3,7 @@ setlocal
 chcp 65001 >nul
 rem ==========================================================================
 rem  Pobiera najnowsza wersje repozytorium fusik/pw_excel do folderu, w ktorym
-rem  lezy ten plik .bat, a po 5 sekundach importuje kod VBA do PW_integration.xlsm.
+rem  lezy ten plik .bat, a zaraz potem importuje kod VBA do PW_integration.xlsm.
 rem  Pliki o tych samych nazwach sa NADPISYWANE. Przed uruchomieniem zamknij Excela.
 rem ==========================================================================
 
@@ -52,8 +52,7 @@ if errorlevel 1 goto :fail
 rmdir /s /q "%TMP_DIR%" 2>nul
 rmdir /s /q "%TEMP%\pw_excel_download_zip" 2>nul
 echo.
-echo Pobrano. Import kodu VBA za 5 sekund (Ctrl+C = przerwij)...
-timeout /t 5
+echo Pobrano. Import kodu VBA...
 echo.
 powershell -NoProfile -ExecutionPolicy Bypass -File "%DEST%Import-VBA.ps1"
 echo.
