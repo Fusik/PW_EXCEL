@@ -3,18 +3,28 @@ setlocal
 chcp 65001 >nul
 rem ==========================================================================
 rem  Pobiera najnowsza wersje repozytorium fusik/pw_excel do folderu, w ktorym
-rem  lezy ten plik .bat. Istniejace pliki o tych samych nazwach sa NADPISYWANE
-rem  (zrob kopie PW_integrationg.xlsm, jesli masz w nim wlasne dane).
+rem  lezy ten plik .bat, a po 5 sekundach importuje kod VBA do PW_integration.xlsm.
+rem  Pliki o tych samych nazwach sa NADPISYWANE. Przed uruchomieniem zamknij Excela.
 rem ==========================================================================
+
+rem --- uruchom kopie siebie z %TEMP%, bo pobieranie nadpisuje ten plik (cmd czyta .bat w trakcie dzialania)
+if /i not "%~dp0"=="%TEMP%\pw_excel_runner\" (
+    mkdir "%TEMP%\pw_excel_runner" 2>nul
+    copy /y "%~f0" "%TEMP%\pw_excel_runner\run.bat" >nul
+    call "%TEMP%\pw_excel_runner\run.bat" "%~dp0"
+    exit /b
+)
+
 set "REPO=fusik/pw_excel"
 set "BRANCH=claude/ecstatic-planck-3kaiet"
-set "DEST=%~dp0"
+set "DEST=%~1"
 set "TMP_DIR=%TEMP%\pw_excel_download"
 
 echo Repozytorium: %REPO%  (galaz: %BRANCH%)
 echo Folder docelowy: %DEST%
 echo.
-echo UWAGA: pliki w tym folderze zostana nadpisane wersja z GitHuba.
+echo UWAGA: pliki w tym folderze zostana nadpisane wersja z GitHuba, a potem
+echo        nastapi import kodu VBA (Excel musi byc zamkniety).
 choice /m "Kontynuowac"
 if errorlevel 2 exit /b 0
 
@@ -42,7 +52,11 @@ if errorlevel 1 goto :fail
 rmdir /s /q "%TMP_DIR%" 2>nul
 rmdir /s /q "%TEMP%\pw_excel_download_zip" 2>nul
 echo.
-echo Gotowe.
+echo Pobrano. Import kodu VBA za 5 sekund (Ctrl+C = przerwij)...
+timeout /t 5
+echo.
+powershell -NoProfile -ExecutionPolicy Bypass -File "%DEST%Import-VBA.ps1"
+echo.
 pause
 exit /b 0
 
