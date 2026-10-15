@@ -23,8 +23,7 @@ set "TMP_DIR=%TEMP%\pw_excel_download"
 echo Repozytorium: %REPO%  (galaz: %BRANCH%)
 echo Folder docelowy: %DEST%
 echo.
-echo UWAGA: pliki w tym folderze zostana nadpisane wersja z GitHuba (poza Twoim
-echo        PW_integration.xlsm z danymi - ten dostaje tylko nowy kod VBA), a potem
+echo UWAGA: pliki w tym folderze (razem z PW_integration.xlsm) zostana nadpisane wersja z GitHuba, a potem
 echo        nastapi import kodu VBA (Excel musi byc zamkniety).
 choice /m "Kontynuowac"
 if errorlevel 2 exit /b 0
@@ -47,18 +46,8 @@ if %errorlevel%==0 (
 )
 
 echo Kopiowanie plikow do %DEST% ...
-rem --- istniejacy skoroszyt z danymi NIE jest nadpisywany (nowy pusty szablon trafia obok jako PW_integration_szablon.xlsm)
-set "DEST_NS=%DEST:~0,-1%"
-if exist "%DEST%PW_integration.xlsm" (
-    copy /y "%DEST%PW_integration.xlsm" "%DEST%PW_integration_backup.xlsm" >nul
-    copy /y "%TMP_DIR%\PW_integration.xlsm" "%DEST%PW_integration_szablon.xlsm" >nul
-    robocopy "%TMP_DIR%" "%DEST_NS%" /E /XF PW_integration.xlsm /NFL /NDL /NJH /NJS /NP >nul
-    if errorlevel 8 goto :fail
-    echo Zachowano Twoj PW_integration.xlsm z danymi ^(kopia: PW_integration_backup.xlsm^).
-) else (
-    xcopy "%TMP_DIR%\*" "%DEST%" /E /I /Y /Q >nul
-    if errorlevel 1 goto :fail
-)
+xcopy "%TMP_DIR%\*" "%DEST%" /E /I /Y /Q >nul
+if errorlevel 1 goto :fail
 
 rmdir /s /q "%TMP_DIR%" 2>nul
 rmdir /s /q "%TEMP%\pw_excel_download_zip" 2>nul
