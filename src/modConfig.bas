@@ -7,7 +7,7 @@ Option Explicit
 ' =======================================================================
 
 ' --- Wersja kodu: hash commita z repozytorium, z ktorego zaimportowano kod (widac go w arkuszu Instrukcja, B3) ---
-Public Const BUILD_ID As String = "1b18b11"
+Public Const BUILD_ID As String = "4f6bc1c"
 
 ' --- Nazwy arkuszy (zakładek) ---
 Public Const SH_START As String = "Instrukcja"      ' Instrukcja obsługi
