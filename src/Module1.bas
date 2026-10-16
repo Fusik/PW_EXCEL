@@ -450,6 +450,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine "$ErrorActionPreference = 'Stop'" ' Zapis kodu PS: Konfiguracja, zatrzymaj skrypt jeśli wystąpi krytyczny błąd PowerShell
     psFile.WriteLine ""                             ' Zapis kodu PS: Pusty wiersz dla czytelności kodu w PS1
     psFile.WriteLine "$globalWatch = [System.Diagnostics.Stopwatch]::StartNew()" ' Zapis kodu PS: Uruchomienie głównego wbudowanego stopera PS
+    psFile.WriteLine "try { Add-Type -Namespace Q -Name K -MemberDefinition '[DllImport(\"kernel32.dll\")] public static extern IntPtr GetStdHandle(int h); [DllImport(\"kernel32.dll\")] public static extern bool GetConsoleMode(IntPtr h, out uint m); [DllImport(\"kernel32.dll\")] public static extern bool SetConsoleMode(IntPtr h, uint m);'; $h = [Q.K]::GetStdHandle(-10); $m = 0; if ([Q.K]::GetConsoleMode($h, [ref]$m)) { [void][Q.K]::SetConsoleMode($h, (($m -bor 0x80) -band (-bnot 0x40))) } } catch {}" ' QuickEdit off: klikniecie w okno konsoli nie wstrzymuje juz skryptu
     psFile.WriteLine "Write-Host 'Loading PWPS_DAB...' -ForegroundColor Cyan" ' Zapis kodu PS: Wypisanie informacji w konsoli
     psFile.WriteLine "Import-Module PWPS_DAB -Force" ' Zapis kodu PS: Wymuszone wczytanie biblioteki integracji z ProjectWise
     psFile.WriteLine ""                             ' Zapis kodu PS: Pusty wiersz
