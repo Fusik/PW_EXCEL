@@ -248,83 +248,75 @@ Public Sub DrawHeader(wsV As Worksheet)
     Set shp = UiShape(wsV, "ui_info", msoShapeRectangle, 250, 6, 900, 28, t.titleBg, -1, mSub & IIf(mWarn <> "", "   |   " & mWarn, ""), t.cardMuted, 9, "", False)
     shp.TextFrame2.TextRange.Font.Fill.ForeColor.RGB = IIf(mWarn <> "", RGB(255, 140, 130), RGB(170, 185, 210))
     
-    ' karty KPI
-    Dim caps As Variant, vals As Variant, clrs As Variant, wds As Variant
+    ' uklad: zamrozone kolumny A:B (szerokosc fz) zawieraja KPI x4, widok/szukaj/motyw, 3 przyciski akcji i legende; reszta (ostatnia aktualizacja, folder docelowy, skan atrybutow, log, strony) jest za granica
+    Dim iw As Double, xr As Double, gap As Double, cw As Double
+    iw = fz - 20: gap = 8: xr = fz + 12
+    Dim caps As Variant, vals As Variant, clrs As Variant
     caps = Array("FOLDERS", "FILES", "NEW / CHANGED", "DELETED FROM PW", "LAST UPDATE")
     vals = Array(CStr(mFold), CStr(mFile), CStr(mChg), CStr(mDel), mStatus)
     clrs = Array(RGB(47, 117, 181), RGB(0, 150, 136), RGB(237, 125, 49), RGB(214, 69, 65), t.accent)
-    wds = Array(130, 130, 150, 160, 300)
-    x = 10: y = wsV.Rows(2).Top + 6
+    cw = (iw - 3 * gap) / 4
+    y = wsV.Rows(2).Top + 6
     For k = 0 To 4
-        x = SnapX(x, CDbl(wds(k)), fz)
-        Set shp = UiShape(wsV, "ui_card" & k, msoShapeRectangle, x, y, CDbl(wds(k)), 50, t.cardBg, RGB(205, 210, 220), CStr(caps(k)) & vbCr & CStr(vals(k)), t.cardMuted, 8, "", False)
+        If k < 4 Then x = 10 + k * (cw + gap) Else x = xr
+        Set shp = UiShape(wsV, "ui_card" & k, msoShapeRectangle, x, y, IIf(k < 4, cw, 300), 50, t.cardBg, RGB(205, 210, 220), CStr(caps(k)) & vbCr & CStr(vals(k)), t.cardMuted, 8, "", False)
         With shp.TextFrame2.TextRange
             .Paragraphs(1).Font.Size = 8: .Paragraphs(1).Font.Bold = msoTrue
-            .Paragraphs(2).Font.Size = IIf(k = 4, 12, 20): .Paragraphs(2).Font.Bold = msoTrue
+            .Paragraphs(2).Font.Size = IIf(k = 4, 12, 18): .Paragraphs(2).Font.Bold = msoTrue
             .Paragraphs(2).Font.Fill.ForeColor.RGB = clrs(k)
         End With
         shp.Line.Visible = msoFalse
-        x = x + wds(k) + 8
     Next k
     
-    ' pola sterowania: widok, szukaj, motyw, folder docelowy (klik = menu / okno)
+    ' pola sterowania: widok, szukaj, motyw (w A:B); folder docelowy za granica
+    Dim w1 As Double, w2 As Double, w3 As Double
+    w1 = Int(iw * 0.28): w3 = Int(iw * 0.24): w2 = iw - w1 - w3 - 2 * gap
     y = wsV.Rows(3).Top + 4: x = 10
-    x = SnapX(x, 180, fz)
-    Set shp = UiShape(wsV, "ui_view", msoShapeRoundedRectangle, x, y, 180, 30, t.inputBg, t.accent, "VIEW:  " & vw & "   " & ChrW(9660), t.inputFg, 10, wn & "ShowViewMenu", False): x = x + 188
-    x = SnapX(x, 290, fz)
-    Set shp = UiShape(wsV, "ui_search", msoShapeRoundedRectangle, x, y, 290, 30, t.inputBg, t.accent, "SEARCH:  " & IIf(sr = "", "click to type...", sr), t.inputFg, 11, wn & "EditSearch", False)
-    shp.Line.Weight = 2.5: x = x + 298
-    x = SnapX(x, 140, fz)
-    Set shp = UiShape(wsV, "ui_theme", msoShapeRoundedRectangle, x, y, 140, 30, t.inputBg, t.accent, "THEME:  " & th & "   " & ChrW(9660), t.inputFg, 10, wn & "ShowThemeMenu", False): x = x + 148
-    x = SnapX(x, 330, fz)
-    Set shp = UiShape(wsV, "ui_target", msoShapeRoundedRectangle, x, y, 330, 30, t.inputBg, t.accent, "DOWNLOAD TO:  " & IIf(tg = "", "click to choose...", tg), t.inputFg, 10, wn & "ChooseTargetFolder", False)
+    Set shp = UiShape(wsV, "ui_view", msoShapeRoundedRectangle, x, y, w1, 30, t.inputBg, t.accent, "VIEW:  " & vw & "  " & ChrW(9660), t.inputFg, 10, wn & "ShowViewMenu", False): x = x + w1 + gap
+    Set shp = UiShape(wsV, "ui_search", msoShapeRoundedRectangle, x, y, w2, 30, t.inputBg, t.accent, "SEARCH:  " & IIf(sr = "", "click to type...", sr), t.inputFg, 11, wn & "EditSearch", False)
+    shp.Line.Weight = 2.5: x = x + w2 + gap
+    Set shp = UiShape(wsV, "ui_theme", msoShapeRoundedRectangle, x, y, w3, 30, t.inputBg, t.accent, "THEME:  " & th & "  " & ChrW(9660), t.inputFg, 10, wn & "ShowThemeMenu", False)
+    Set shp = UiShape(wsV, "ui_target", msoShapeRoundedRectangle, xr, y, 330, 30, t.inputBg, t.accent, "DOWNLOAD TO:  " & IIf(tg = "", "click to choose...", tg), t.inputFg, 10, wn & "ChooseTargetFolder", False)
     
-    ' przyciski akcji
+    ' przyciski akcji: 3 w A:B, skan i log za granica
     y = wsV.Rows(4).Top + 5: x = 10
-    Dim nms As Variant, cps As Variant, wd As Variant
+    Dim nms As Variant, cps As Variant, bw As Double
     nms = Array("btnUpdateV", "btnNavV", "btnGetFiles")
     cps = Array("UPDATE DATA", "FOLDER NAVIGATOR", "DOWNLOAD FROM PW")
-    wd = Array(180, 180, 190)
+    bw = (iw - 2 * gap) / 3
     For k = 0 To 2
-        x = SnapX(x, CDbl(wd(k)), fz)
         Set shp = Nothing
         Set shp = wsV.Shapes(CStr(nms(k)))
         If Not shp Is Nothing Then
             shp.Placement = xlFreeFloating
-            shp.Left = x: shp.Top = y: shp.Width = wd(k): shp.Height = 32
+            shp.Left = x: shp.Top = y: shp.Width = bw: shp.Height = 32
             shp.TextFrame2.TextRange.Text = CStr(cps(k))
             shp.ZOrder msoBringToFront
         End If
-        x = x + wd(k) + 8
+        x = x + bw + gap
     Next k
-    x = SnapX(x, 190, fz)
-    Set shp = UiShape(wsV, "ui_scan", msoShapeRoundedRectangle, x, y, 190, 32, t.inputBg, t.accent, "SCAN ATTRIBUTES (background)", t.inputFg, 9, wn & "StartAttrScan", False)
-    x = x + 198
-    x = SnapX(x, 130, fz)
-    Set shp = UiShape(wsV, "ui_pslog", msoShapeRoundedRectangle, x, y, 130, 32, t.inputBg, t.accent, "OPEN PS LOG", t.inputFg, 9, wn & "OpenLastPsLog", False)
+    Set shp = UiShape(wsV, "ui_scan", msoShapeRoundedRectangle, xr, y, 190, 32, t.inputBg, t.accent, "SCAN ATTRIBUTES (background)", t.inputFg, 9, wn & "StartAttrScan", False)
+    Set shp = UiShape(wsV, "ui_pslog", msoShapeRoundedRectangle, xr + 198, y, 130, 32, t.inputBg, t.accent, "OPEN PS LOG", t.inputFg, 9, wn & "OpenLastPsLog", False)
     
-    ' legenda + stronicowanie
+    ' legenda (A:B) + stronicowanie (za granica)
     y = wsV.Rows(5).Top + 4: x = 10
-    x = SnapX(x, 90, fz)
-    Set shp = UiShape(wsV, "ui_legend", msoShapeRectangle, x, y, 90, 20, t.panelBg, -1, "COLOR LEGEND", t.cardMuted, 8, "", False)
-    shp.TextFrame2.TextRange.Font.Bold = msoTrue: x = x + 92
-    Dim ct As Variant, cb As Variant
+    Dim lw As Double: lw = 84
+    Set shp = UiShape(wsV, "ui_legend", msoShapeRectangle, x, y, lw, 20, t.panelBg, -1, "COLOR LEGEND", t.cardMuted, 8, "", False)
+    shp.TextFrame2.TextRange.Font.Bold = msoTrue: x = x + lw + 2
+    Dim ct As Variant, cb As Variant, chw As Double
     ct = Array("New", "Changed", "Deleted from PW", "Unchanged")
     cb = Array(t.newBg, t.changedBg, t.deletedBg, t.dataBg)
+    chw = (iw - lw - 2 - 4 * 4) / 4
     For k = 0 To 3
-        x = SnapX(x, 112, fz)
-        Set shp = UiShape(wsV, "ui_chip" & k, msoShapeRectangle, x, y, 112, 20, CLng(cb(k)), t.accent, CStr(ct(k)), t.dataFg, 9, "", True)
-        x = x + 116
+        Set shp = UiShape(wsV, "ui_chip" & k, msoShapeRectangle, x, y, chw, 20, CLng(cb(k)), t.accent, CStr(ct(k)), t.dataFg, 9, "", True)
+        x = x + chw + 4
     Next k
-    x = x + 20
-    x = SnapX(x, 70, fz)
+    x = xr
     Set shp = UiShape(wsV, "ui_prev", msoShapeRoundedRectangle, x, y, 70, 20, t.inputBg, t.accent, ChrW(9664) & " PREV", t.inputFg, 9, wn & "PagePrev", True): x = x + 74
     Dim pg As String
     pg = "Page " & mPage & " / " & mPages & "   |   " & mTotal & " results" & IIf(mFolder <> "", "   |   folder: " & Replace(Left(mFolder, Len(mFolder) - 1), "\", " > "), "")
-    x = SnapX(x, 430, fz)
     Set shp = UiShape(wsV, "ui_page", msoShapeRectangle, x, y, 430, 20, t.panelBg, -1, pg, t.panelFg, 9, wn & "ClearFolderFilter", False)
     shp.TextFrame2.TextRange.Font.Bold = msoTrue: x = x + 434
-    x = SnapX(x, 70, fz)
     Set shp = UiShape(wsV, "ui_next", msoShapeRoundedRectangle, x, y, 70, 20, t.inputBg, t.accent, "NEXT " & ChrW(9654), t.inputFg, 9, wn & "PageNext", True)
     On Error GoTo 0
 End Sub
