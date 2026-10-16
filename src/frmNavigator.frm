@@ -152,25 +152,29 @@ Private Sub UserForm_Initialize()
         End If
     Next i
     
-    Dim p As Variant, nd As MSComctlLib.Node
+    Dim p As Variant, nd As MSComctlLib.Node, made As Object, done As Long
+    Set made = CreateObject("Scripting.Dictionary"): made.CompareMode = 1     ' utworzone klucze (wyszukiwanie klucza w TreeView jest liniowe)
     For Each p In ord.Keys
         segs = Split(CStr(p), "\")
         parentKey = "": key = ""
         For j = 0 To UBound(segs)
             If Trim(segs(j)) <> "" Then
                 key = key & segs(j) & "\"
-                If Not NodeExists(key) Then
+                If Not made.exists(key) Then
                     If parentKey = "" Then
                         Set nd = Me.TreeView1.Nodes.Add(Key:=key, Text:=segs(j) & "  (" & cnt(key) & ")")
                     Else
                         Set nd = Me.TreeView1.Nodes.Add(Relative:=parentKey, Relationship:=tvwChild, Key:=key, Text:=segs(j) & "  (" & cnt(key) & ")")
                     End If
                     nd.Expanded = (parentKey = "")
+                    made(key) = 1
                 End If
                 parentKey = key
             End If
         Next j
+        done = done + 1: If done Mod 500 = 0 Then Application.StatusBar = "Building folder tree: " & done & " / " & ord.Count: DoEvents
     Next p
+    Application.StatusBar = False
     Me.TreeView1.Sorted = True
 End Sub
 
