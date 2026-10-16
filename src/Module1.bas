@@ -119,6 +119,7 @@ Private Sub RunDownload()                           ' Właściwa logika orkiestr
     DeleteIfExists csvOutputPath & ".attrs"
     gStart = startExecTime: gTxtPath = txtFoldersPath: gStructPath = structureLogPath
     gPsPath = psScriptPath: gCsvPath = csvOutputPath: gNumScopes = numScopes: gScopes = arrCleanScopes
+    WriteAttrMap txtFoldersPath & ".map"             ' znane podfoldery (juz sprawdzone) - PowerShell ich nie skanuje ponownie
     RunPowerShellScript psScriptPath, txtFoldersPath, csvOutputPath, structureLogPath ' PowerShell startuje w tle - Excel NIE czeka
     gBusy = True
     SchedulePoll
@@ -527,12 +528,12 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine " $documents = @(Get-PWDocumentsBySearch -FolderID $pwFolder.ProjectID -GetAttributes @extra -WarningAction SilentlyContinue -ErrorAction SilentlyContinue)"
     psFile.WriteLine " }"
     psFile.WriteLine "if ($discoverSub -and @($documents).Count -gt 0) {"
-    psFile.WriteLine "    $dw = [System.Diagnostics.Stopwatch]::StartNew(); $seenF = @{}; $nF = 0"
+    psFile.WriteLine "    $dw = [System.Diagnostics.Stopwatch]::StartNew(); $seenF = @{}; $nF = 0; $newF = New-Object System.Collections.ArrayList; $knownF = @{}; if (Test-Path ($InputFile + '.map')) { foreach ($ml in (Get-Content ($InputFile + '.map') -Encoding UTF8)) { $mp = $ml.Split('|'); if ($mp[0]) { $knownF[$mp[0]] = 1 } } }"
     psFile.WriteLine "    Write-Host 'Checking attributes of one file per subfolder...' -ForegroundColor Yellow"
     psFile.WriteLine "    foreach ($d0 in $documents) {"
     psFile.WriteLine "        if ($dw.Elapsed.TotalSeconds -gt 600) { Write-Host 'Subfolder attribute check stopped after 10 min.' -ForegroundColor Yellow; break }"
     psFile.WriteLine "        $fp0 = [string]$d0.FullPath; $ls0 = $fp0.LastIndexOf('\'); if ($ls0 -lt 0) { continue }"
-    psFile.WriteLine "        $fk0 = $fp0.Substring(0, $ls0); if ($seenF.ContainsKey($fk0)) { continue }; $seenF[$fk0] = $true; $nF++"
+    psFile.WriteLine "        $fk0 = $fp0.Substring(0, $ls0); if ($seenF.ContainsKey($fk0) -or $knownF.ContainsKey($fk0)) { continue }; $seenF[$fk0] = $true; $nF++"
     psFile.WriteLine "        $rel0 = $fk0; $i0 = $rel0.IndexOf('\Documents\', [System.StringComparison]::OrdinalIgnoreCase); if ($i0 -ge 0) { $rel0 = $rel0.Substring($i0 + 11) } elseif ($rel0.StartsWith('Documents\', [System.StringComparison]::OrdinalIgnoreCase)) { $rel0 = $rel0.Substring(10) }"
     psFile.WriteLine "        if ($nF % 20 -eq 0) { Write-Progress -Id 2 -Activity 'Checking attributes per subfolder' -Status ('Subfolder ' + $nF + ' | ' + $dw.Elapsed.ToString('mm\:ss')) }"
     psFile.WriteLine "        try {"
@@ -542,7 +543,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine "            if (-not $s0) { continue }"
     psFile.WriteLine "            $ca0 = $s0.CustomAttributes; if (-not $ca0) { continue }"
     psFile.WriteLine "            if ($ca0 -is [System.Collections.IDictionary]) { $nm0 = @($ca0.Keys | ForEach-Object { [string]$_ }) } else { $nm0 = @($ca0.PSObject.Properties | ForEach-Object { $_.Name }) }"
-    psFile.WriteLine "            foreach ($n0 in $nm0) { if ($n0 -and -not $foundAttrs.Contains($n0)) { if ($ca0 -is [System.Collections.IDictionary]) { $v0 = $ca0[$n0] } else { $v0 = $ca0.PSObject.Properties[$n0].Value }; if ($v0 -is [array]) { $v0 = ($v0 -join ', ') }; $foundAttrs[$n0] = ([string]$v0).Replace('|', '-').Replace([string][char]10, ' ').Replace([string][char]13, '') } }"
+    psFile.WriteLine "            $ne0 = @(); foreach ($n0 in $nm0) { if (-not $n0) { continue }; if ($ca0 -is [System.Collections.IDictionary]) { $v0 = $ca0[$n0] } else { $v0 = $ca0.PSObject.Properties[$n0].Value }; if ($v0 -is [array]) { $v0 = ($v0 -join ', ') }; $sv0 = ([string]$v0).Replace('|', '-').Replace([string][char]10, ' ').Replace([string][char]13, ''); if ($sv0.Trim() -ne '') { $ne0 += $n0; if (-not $foundAttrs.Contains($n0)) { $foundAttrs[$n0] = $sv0 } } }; [void]$newF.Add('F|' + $fk0 + '|' + ($ne0 -join [string][char]9))"
     psFile.WriteLine "        } catch { }"
     psFile.WriteLine "    }"
     psFile.WriteLine "    Write-Progress -Id 2 -Activity 'Checking attributes per subfolder' -Completed"
@@ -552,7 +553,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine "        $selectedAttrs = @($selectedAttrs + $newA); $customAttrs = @($customAttrs + $newA)"
     psFile.WriteLine "        if ($usedFast) { try { $cr = @{ ColumnsToReturn = $customAttrs }; $r2 = @(Get-PWDocumentsBySearchExtended -FolderPath $folderPath -PopulatePath @gv @cr -WarningAction SilentlyContinue -ErrorAction Stop); if ($r2.Count -gt 0 -and $r2[0] -isnot [System.Data.DataTable]) { foreach ($d in $r2) { if ([string]::IsNullOrWhiteSpace([string]$d.DocumentURN)) { $d | Add-Member -NotePropertyName DocumentURN -NotePropertyValue ('pw://' + $dsName + '/Documents/D{' + ([string]$d.DocumentGUIDString).Trim('{}').ToLower() + '}') -Force } }; $documents = $r2 } } catch { Write-Host 'Refetch with new attributes failed - they will be fetched on the next update.' -ForegroundColor Yellow } }"
     psFile.WriteLine "    }"
-    psFile.WriteLine "    $foundAttrs.GetEnumerator() | ForEach-Object { $_.Key + '|' + $_.Value } | Out-File -FilePath ($OutputFile + '.attrs') -Encoding UTF8 -Append"
+    psFile.WriteLine "    $ol = New-Object System.Collections.ArrayList; foreach ($k in $foundAttrs.Keys) { [void]$ol.Add('A|' + $k + '|' + $foundAttrs[$k]) }; foreach ($x in $newF) { [void]$ol.Add($x) }; if ($ol.Count -gt 0) { $ol | Out-File -FilePath ($OutputFile + '.attrs') -Encoding UTF8 -Append }"
     psFile.WriteLine "}"
     psFile.WriteLine " $maxSeq = @{}; foreach ($d in $documents) { $u = [string]$d.DocumentURN; $sq = [int]$d.VersionSequence; if (-not $maxSeq.ContainsKey($u) -or $sq -gt $maxSeq[$u]) { $maxSeq[$u] = $sq } }" ' Najwyzsza wersja kazdego URN
     psFile.WriteLine " Write-Host ('Found total documents: ' + $documents.Count + ' (fetch from PW: ' + $fetchWatch.Elapsed.ToString('mm\:ss') + ')') -ForegroundColor Green"
@@ -1038,4 +1039,21 @@ Sub CopyHeadersFromSheet3()
             cCol = cCol + 1
         End If
     Next r
+End Sub
+
+' Zapisuje znane podfoldery (arkusz AttrMap) do pliku dla PowerShella: folder|atrybuty
+Private Sub WriteAttrMap(ByVal path As String)
+    Dim fso As Object, f As Object, ws As Worksheet, r As Long, lastR As Long
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    Set f = fso.CreateTextFile(path, True, True)
+    On Error Resume Next
+    Set ws = ThisWorkbook.Sheets(SH_ATTRMAP)
+    On Error GoTo 0
+    If Not ws Is Nothing Then
+        lastR = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
+        For r = 2 To lastR
+            If Trim(CStr(ws.Cells(r, 1).Value)) <> "" Then f.WriteLine CStr(ws.Cells(r, 1).Value) & "|" & CStr(ws.Cells(r, 2).Value)
+        Next r
+    End If
+    f.Close
 End Sub

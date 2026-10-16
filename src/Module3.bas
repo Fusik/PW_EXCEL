@@ -258,39 +258,82 @@ Public Function ParseFolderLink(ByVal link As String, ByRef ds As String, ByRef 
     ParseFolderLink = (ds <> "" And fp <> "")
 End Function
 
-' Dopisuje do arkusza Attributes atrybuty znalezione w podfolderach (plik name|example); nic nie kasuje
+' Wynik sprawdzania podfolderow (plik): linie A|atrybut|przyklad (tylko niepuste) i F|folder|atrybuty (TAB).
+' Atrybuty trafiaja do arkusza Attributes (YES), mapa folder -> atrybuty do ukrytego arkusza AttrMap (kolejne aktualizacje nie skanuja znanych folderow).
 Public Sub MergeFoundAttributes(ByVal path As String)
-    Dim fso As Object, st As Object, tx As String, ln() As String, i As Long, p As Long, nm As String
+    Dim fso As Object, st As Object, tx As String, ln() As String, i As Long, p As Long, q As Long, nm As String
     Set fso = CreateObject("Scripting.FileSystemObject")
     If Not fso.FileExists(path) Then Exit Sub
     On Error GoTo Done
     Set st = CreateObject("ADODB.Stream"): st.Charset = "utf-8": st.Open: st.LoadFromFile path
     If Not st.EOS Then tx = st.ReadText
     st.Close
-    Dim wsA As Worksheet, known As Object, lastA As Long, n As Long
+    Dim wsA As Worksheet, wsM As Worksheet, known As Object, mapRow As Object, found As Object
+    Dim lastA As Long, lastM As Long, n As Long, firstScan As Boolean
     Set wsA = ThisWorkbook.Sheets(SH_ATTRS)
     Set known = CreateObject("Scripting.Dictionary"): known.CompareMode = 1
+    Set mapRow = CreateObject("Scripting.Dictionary"): mapRow.CompareMode = 1
+    Set found = CreateObject("Scripting.Dictionary"): found.CompareMode = 1
+    On Error Resume Next
+    Set wsM = ThisWorkbook.Sheets(SH_ATTRMAP)
+    On Error GoTo Done
+    If wsM Is Nothing Then
+        firstScan = True
+        Set wsM = ThisWorkbook.Sheets.Add(After:=ThisWorkbook.Sheets(ThisWorkbook.Sheets.Count))
+        wsM.Name = SH_ATTRMAP
+        wsM.Range("A1:B1").Value = Array("Folder", "Attributes (non-empty on the sampled file)")
+        wsM.Visible = xlSheetHidden
+    End If
+    lastM = wsM.Cells(wsM.Rows.Count, 1).End(xlUp).Row
+    For i = 2 To lastM
+        mapRow(CStr(wsM.Cells(i, 1).Value)) = i
+    Next i
     lastA = wsA.Cells(wsA.Rows.Count, 1).End(xlUp).Row
     If lastA < ATTRS_FIRST_ROW - 1 Then lastA = ATTRS_FIRST_ROW - 1
     For i = ATTRS_FIRST_ROW To lastA
-        If Trim(CStr(wsA.Cells(i, 1).Value)) <> "" Then known(Trim(CStr(wsA.Cells(i, 1).Value))) = 1
+        If Trim(CStr(wsA.Cells(i, 1).Value)) <> "" Then known(Trim(CStr(wsA.Cells(i, 1).Value))) = i
     Next i
     ln = Split(Replace(Replace(tx, vbCrLf, vbLf), vbCr, vbLf), vbLf)
     For i = 0 To UBound(ln)
-        p = InStr(ln(i), "|")
-        If p > 1 Then
-            nm = Trim(Left(ln(i), p - 1))
-            If nm <> "" And Not known.exists(nm) Then
-                lastA = lastA + 1
-                wsA.Cells(lastA, 1).Value = nm
-                wsA.Cells(lastA, ATTRS_ENABLE_COL).Value = "YES"
-                wsA.Cells(lastA, ATTRS_TYPE_COL).Value = "ATRYBUT"
-                wsA.Cells(lastA, ATTRS_EXAMPLE_COL).Value = "'" & Mid(ln(i), p + 1)
-                known(nm) = 1: n = n + 1
+        If Left(ln(i), 2) = "A|" Then
+            p = InStr(3, ln(i), "|")
+            If p > 3 Then
+                nm = Trim(Mid(ln(i), 3, p - 3))
+                found(nm) = 1
+                If Not known.exists(nm) Then
+                    lastA = lastA + 1
+                    wsA.Cells(lastA, 1).Value = nm
+                    wsA.Cells(lastA, ATTRS_ENABLE_COL).Value = "YES"
+                    wsA.Cells(lastA, ATTRS_TYPE_COL).Value = "ATRYBUT"
+                    wsA.Cells(lastA, ATTRS_EXAMPLE_COL).Value = "'" & Mid(ln(i), p + 1)
+                    known(nm) = lastA: n = n + 1
+                End If
+            End If
+        ElseIf Left(ln(i), 2) = "F|" Then
+            p = InStr(3, ln(i), "|")
+            If p > 3 Then
+                nm = Mid(ln(i), 3, p - 3)
+                If mapRow.exists(nm) Then
+                    q = mapRow(nm)
+                Else
+                    lastM = lastM + 1: q = lastM: mapRow(nm) = q
+                    wsM.Cells(q, 1).Value = nm
+                End If
+                wsM.Cells(q, 2).Value = "'" & Mid(ln(i), p + 1)
             End If
         End If
     Next i
-    If n > 0 Then Notify n & " new attribute(s) found in subfolders were added to sheet " & SH_ATTRS & " (YES)."
+    If firstScan Then                                  ' pierwszy raz: wylacz wczesniej dopisane atrybuty, ktore nigdzie nie maja wartosci
+        Dim nOff As Long
+        For i = ATTRS_FIRST_ROW To lastA
+            nm = Trim(CStr(wsA.Cells(i, 1).Value))
+            If UCase(Trim(CStr(wsA.Cells(i, ATTRS_TYPE_COL).Value))) = "ATRYBUT" And Not IsNo(wsA.Cells(i, ATTRS_ENABLE_COL).Value) Then
+                If Not found.exists(nm) And Trim(CStr(wsA.Cells(i, ATTRS_EXAMPLE_COL).Value)) = "" Then wsA.Cells(i, ATTRS_ENABLE_COL).Value = "NO": nOff = nOff + 1
+            End If
+        Next i
+        If nOff > 0 Then Notify nOff & " attributes with no value in any subfolder were switched to NO in sheet " & SH_ATTRS & " (change back to YES if needed)."
+    End If
+    If n > 0 Then Notify n & " new attribute(s) with values found in subfolders were added to sheet " & SH_ATTRS & " (YES)."
 Done:
     On Error Resume Next
     fso.DeleteFile path

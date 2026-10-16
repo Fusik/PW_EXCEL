@@ -15,6 +15,7 @@ Public Const SH_FOLDERS As String = "Folders"       ' Lista folderów ProjectWis
 Public Const SH_ATTRS As String = "Attributes"     ' Lista atrybutów (kolumn) do pobrania
 Public Const SH_DATA As String = "PW_Data"          ' Wynik: lista plików z ProjectWise
 Public Const SH_DIAG As String = "Diagnostics"      ' Podgląd dostępnych atrybutów PW
+Public Const SH_ATTRMAP As String = "AttrMap"       ' ukryty: podfolder -> lista niepustych atrybutow
 Public Const SH_LOG As String = "Log"               ' Historia zmian
 Public Const SH_VIEWS As String = "Views"            ' Definicje widokow (ktore kolumny i w jakiej kolejnosci)
 Public Const SH_VIEW As String = "Dashboard"       ' Wynik: Baza_PW wyswietlona wg wybranego widoku
