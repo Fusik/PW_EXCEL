@@ -116,6 +116,7 @@ Private Sub RunDownload()                           ' Właściwa logika orkiestr
     DeleteIfExists csvOutputPath                    ' Stare wyniki NIE mogą zostać użyte, gdy PowerShell się nie powiedzie (inaczej delta liczyłaby się na starych danych)
     DeleteIfExists structureLogPath
     DeleteIfExists csvOutputPath & ".done"
+    DeleteIfExists csvOutputPath & ".attrs"
     gStart = startExecTime: gTxtPath = txtFoldersPath: gStructPath = structureLogPath
     gPsPath = psScriptPath: gCsvPath = csvOutputPath: gNumScopes = numScopes: gScopes = arrCleanScopes
     RunPowerShellScript psScriptPath, txtFoldersPath, csvOutputPath, structureLogPath ' PowerShell startuje w tle - Excel NIE czeka
@@ -158,6 +159,7 @@ Private Sub RunFinish()
     
     AddLogEntry "INFO", "Started Delta analysis in Excel...", "-", "-", "-", "-", 0 ' Zapisanie w logach informacji o rozpoczęciu analizy Delta
     
+    MergeFoundAttributes gCsvPath & ".attrs"        ' atrybuty znalezione w podfolderach -> arkusz Attributes
     ProcessDeltaAnalysis ws1, gCsvPath, gStructPath, gNumScopes, gScopes ' Wywołanie głównego silnika analizy różnic (CSV vs Excel)
     
     CleanUpFiles gTxtPath, gPsPath, gCsvPath ' Wywołanie procedury z pytaniem o usunięcie plików tymczasowych
@@ -463,6 +465,8 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine "$selectedAttrs = " & psArrayString ' Zapis kodu PS: Wstrzyknięcie z Excela tablicy z atrybutami (np. @('Attr1','Attr2'))
     psFile.WriteLine "function Get-Attr($d, $n) { $p = $d.psobject.Properties[$n]; if ($p) { return $p.Value }; foreach ($q in $d.psobject.Properties) { $v = $q.Value; if ($null -eq $v -or $v -is [string] -or $v -is [ValueType] -or $v -is [array]) { continue }; if ($v -is [System.Collections.IDictionary]) { if ($v.Contains($n)) { return $v[$n] } } else { $pp = $v.psobject.Properties[$n]; if ($pp) { return $pp.Value } } }; return $null }" ' Pomocnik: atrybut moze byc wlasciwoscia dokumentu albo siedziec w zagniezdzonym obiekcie/slowniku
     psFile.WriteLine "$customAttrs = " & customArrayString ' Atrybuty projektu przekazywane do ColumnsToReturn (szybki tryb)
+    psFile.WriteLine "$discoverSub = " & IIf(DISCOVER_SUBFOLDER_ATTRS, "$true", "$false")
+    psFile.WriteLine "$foundAttrs = [ordered]@{}; $usedFast = $false"
     psFile.WriteLine "$fastFetch = " & IIf(FAST_FETCH, "$true", "$false") ' Szybkie pobieranie (DataTable) z automatycznym wyjsciem awaryjnym na stary tryb
     psFile.WriteLine "$umap = $null; $smap = $null"
     psFile.WriteLine "function Get-DtVal($row, $attr) { $c = $row.Table.Columns; $v = $null; if ($c.Contains($attr)) { $v = $row[$attr] } elseif ($c.Contains('Document' + $attr)) { $v = $row['Document' + $attr] } elseif ($attr -eq 'WorkflowState') { $sid = [string]$row['DocumentStateId']; if ($smap.ContainsKey($sid)) { $v = $smap[$sid] } else { $v = $sid } } elseif ($attr -eq 'CreateDate' -and $c.Contains('DocumentCreatedDate')) { $v = $row['DocumentCreatedDate'] } elseif ($attr -eq 'DocumentCreatorName' -and $c.Contains('DocumentCreatorId')) { $cid = [string]$row['DocumentCreatorId']; if ($umap.ContainsKey($cid)) { $v = $umap[$cid] } else { $v = 'ID ' + $cid } }; if ($v -is [DBNull]) { $v = $null }; if ($v -is [DateTime]) { $v = $v.ToString('yyyy-MM-dd') }; if ($v -is [string]) { $v = $v.Replace('|', '-').Replace([string][char]10, ' ').Replace([string][char]13, '').Trim() }; return $v }"
@@ -514,7 +518,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine "         if ([string]::IsNullOrWhiteSpace([string]$r[0].FullPath)) { throw 'FullPath pusty mimo PopulatePath' }"
     psFile.WriteLine "         if ([string]::IsNullOrWhiteSpace([string]$r[0].DocumentURN) -and [string]::IsNullOrWhiteSpace([string]$r[0].DocumentGUIDString)) { throw 'brak DocumentURN i GUID' }"
     psFile.WriteLine "         foreach ($d in $r) { if ([string]::IsNullOrWhiteSpace([string]$d.DocumentURN)) { $d | Add-Member -NotePropertyName DocumentURN -NotePropertyValue ('pw://' + $dsName + '/Documents/D{' + ([string]$d.DocumentGUIDString).Trim('{}').ToLower() + '}') -Force } }"
-    psFile.WriteLine "         $documents = $r"
+    psFile.WriteLine "         $documents = $r; $usedFast = $true"
     psFile.WriteLine "         Write-Host ('FAST PATH OK: ' + $r.Count + ' documents in ' + $fetchWatch.Elapsed.ToString('mm\:ss')) -ForegroundColor Green"
     psFile.WriteLine "     } catch { Write-Host ('FAST PATH FAILED, using slow mode: ' + $_.Exception.Message) -ForegroundColor Yellow }"
     psFile.WriteLine " }"
@@ -522,6 +526,34 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine " $extra = @{}; if ($allVersions -and (Get-Command Get-PWDocumentsBySearch).Parameters.ContainsKey('GetVersionsToo')) { $extra['GetVersionsToo'] = $true }" ' Z GetVersionsToo wyszukiwanie zwraca tez starsze rewizje (A, B, C...)
     psFile.WriteLine " $documents = @(Get-PWDocumentsBySearch -FolderID $pwFolder.ProjectID -GetAttributes @extra -WarningAction SilentlyContinue -ErrorAction SilentlyContinue)"
     psFile.WriteLine " }"
+    psFile.WriteLine "if ($discoverSub -and @($documents).Count -gt 0) {"
+    psFile.WriteLine "    $dw = [System.Diagnostics.Stopwatch]::StartNew(); $seenF = @{}; $nF = 0"
+    psFile.WriteLine "    Write-Host 'Checking attributes of one file per subfolder...' -ForegroundColor Yellow"
+    psFile.WriteLine "    foreach ($d0 in $documents) {"
+    psFile.WriteLine "        if ($dw.Elapsed.TotalSeconds -gt 600) { Write-Host 'Subfolder attribute check stopped after 10 min.' -ForegroundColor Yellow; break }"
+    psFile.WriteLine "        $fp0 = [string]$d0.FullPath; $ls0 = $fp0.LastIndexOf('\'); if ($ls0 -lt 0) { continue }"
+    psFile.WriteLine "        $fk0 = $fp0.Substring(0, $ls0); if ($seenF.ContainsKey($fk0)) { continue }; $seenF[$fk0] = $true; $nF++"
+    psFile.WriteLine "        $rel0 = $fk0; $i0 = $rel0.IndexOf('\Documents\', [System.StringComparison]::OrdinalIgnoreCase); if ($i0 -ge 0) { $rel0 = $rel0.Substring($i0 + 11) } elseif ($rel0.StartsWith('Documents\', [System.StringComparison]::OrdinalIgnoreCase)) { $rel0 = $rel0.Substring(10) }"
+    psFile.WriteLine "        if ($nF % 20 -eq 0) { Write-Progress -Id 2 -Activity 'Checking attributes per subfolder' -Status ('Subfolder ' + $nF + ' | ' + $dw.Elapsed.ToString('mm\:ss')) }"
+    psFile.WriteLine "        try {"
+    psFile.WriteLine "            $fo0 = @(Get-PWFolders -FolderPath $rel0.Trim('\') -ErrorAction SilentlyContinue); if ($fo0.Count -eq 0) { continue }"
+    psFile.WriteLine "            $fn0 = [string]$d0.FileName; if (-not $fn0) { $fn0 = [string]$d0.Name }"
+    psFile.WriteLine "            $s0 = Get-PWDocumentsBySearch -FolderID $fo0[0].ProjectID -FileName $fn0 -GetAttributes -WarningAction SilentlyContinue -ErrorAction SilentlyContinue | Select-Object -First 1"
+    psFile.WriteLine "            if (-not $s0) { continue }"
+    psFile.WriteLine "            $ca0 = $s0.CustomAttributes; if (-not $ca0) { continue }"
+    psFile.WriteLine "            if ($ca0 -is [System.Collections.IDictionary]) { $nm0 = @($ca0.Keys | ForEach-Object { [string]$_ }) } else { $nm0 = @($ca0.PSObject.Properties | ForEach-Object { $_.Name }) }"
+    psFile.WriteLine "            foreach ($n0 in $nm0) { if ($n0 -and -not $foundAttrs.Contains($n0)) { if ($ca0 -is [System.Collections.IDictionary]) { $v0 = $ca0[$n0] } else { $v0 = $ca0.PSObject.Properties[$n0].Value }; if ($v0 -is [array]) { $v0 = ($v0 -join ', ') }; $foundAttrs[$n0] = ([string]$v0).Replace('|', '-').Replace([string][char]10, ' ').Replace([string][char]13, '') } }"
+    psFile.WriteLine "        } catch { }"
+    psFile.WriteLine "    }"
+    psFile.WriteLine "    Write-Progress -Id 2 -Activity 'Checking attributes per subfolder' -Completed"
+    psFile.WriteLine "    $newA = @($foundAttrs.Keys | Where-Object { $selectedAttrs -notcontains $_ -and $customAttrs -notcontains $_ -and $_ -notmatch '^(Name|Description|FileName|Updater|Updated)$' })"
+    psFile.WriteLine "    Write-Host ('Subfolders checked: ' + $nF + ' | attributes found: ' + $foundAttrs.Count + ' | new: ' + $newA.Count + ' (' + $dw.Elapsed.ToString('mm\:ss') + ')') -ForegroundColor Green"
+    psFile.WriteLine "    if ($newA.Count -gt 0) {"
+    psFile.WriteLine "        $selectedAttrs = @($selectedAttrs + $newA); $customAttrs = @($customAttrs + $newA)"
+    psFile.WriteLine "        if ($usedFast) { try { $cr = @{ ColumnsToReturn = $customAttrs }; $r2 = @(Get-PWDocumentsBySearchExtended -FolderPath $folderPath -PopulatePath @gv @cr -WarningAction SilentlyContinue -ErrorAction Stop); if ($r2.Count -gt 0 -and $r2[0] -isnot [System.Data.DataTable]) { foreach ($d in $r2) { if ([string]::IsNullOrWhiteSpace([string]$d.DocumentURN)) { $d | Add-Member -NotePropertyName DocumentURN -NotePropertyValue ('pw://' + $dsName + '/Documents/D{' + ([string]$d.DocumentGUIDString).Trim('{}').ToLower() + '}') -Force } }; $documents = $r2 } } catch { Write-Host 'Refetch with new attributes failed - they will be fetched on the next update.' -ForegroundColor Yellow } }"
+    psFile.WriteLine "    }"
+    psFile.WriteLine "    $foundAttrs.GetEnumerator() | ForEach-Object { $_.Key + '|' + $_.Value } | Out-File -FilePath ($OutputFile + '.attrs') -Encoding UTF8 -Append"
+    psFile.WriteLine "}"
     psFile.WriteLine " $maxSeq = @{}; foreach ($d in $documents) { $u = [string]$d.DocumentURN; $sq = [int]$d.VersionSequence; if (-not $maxSeq.ContainsKey($u) -or $sq -gt $maxSeq[$u]) { $maxSeq[$u] = $sq } }" ' Najwyzsza wersja kazdego URN
     psFile.WriteLine " Write-Host ('Found total documents: ' + $documents.Count + ' (fetch from PW: ' + $fetchWatch.Elapsed.ToString('mm\:ss') + ')') -ForegroundColor Green"
     psFile.WriteLine " $totalDocs = $documents.Count" ' Zapis kodu PS: Utworzenie zmiennej limitu dokumentów w folderze

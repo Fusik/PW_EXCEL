@@ -257,3 +257,41 @@ Public Function ParseFolderLink(ByVal link As String, ByRef ds As String, ByRef 
     Loop
     ParseFolderLink = (ds <> "" And fp <> "")
 End Function
+
+' Dopisuje do arkusza Attributes atrybuty znalezione w podfolderach (plik name|example); nic nie kasuje
+Public Sub MergeFoundAttributes(ByVal path As String)
+    Dim fso As Object, st As Object, tx As String, ln() As String, i As Long, p As Long, nm As String
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If Not fso.FileExists(path) Then Exit Sub
+    On Error GoTo Done
+    Set st = CreateObject("ADODB.Stream"): st.Charset = "utf-8": st.Open: st.LoadFromFile path
+    If Not st.EOS Then tx = st.ReadText
+    st.Close
+    Dim wsA As Worksheet, known As Object, lastA As Long, n As Long
+    Set wsA = ThisWorkbook.Sheets(SH_ATTRS)
+    Set known = CreateObject("Scripting.Dictionary"): known.CompareMode = 1
+    lastA = wsA.Cells(wsA.Rows.Count, 1).End(xlUp).Row
+    If lastA < ATTRS_FIRST_ROW - 1 Then lastA = ATTRS_FIRST_ROW - 1
+    For i = ATTRS_FIRST_ROW To lastA
+        If Trim(CStr(wsA.Cells(i, 1).Value)) <> "" Then known(Trim(CStr(wsA.Cells(i, 1).Value))) = 1
+    Next i
+    ln = Split(Replace(Replace(tx, vbCrLf, vbLf), vbCr, vbLf), vbLf)
+    For i = 0 To UBound(ln)
+        p = InStr(ln(i), "|")
+        If p > 1 Then
+            nm = Trim(Left(ln(i), p - 1))
+            If nm <> "" And Not known.exists(nm) Then
+                lastA = lastA + 1
+                wsA.Cells(lastA, 1).Value = nm
+                wsA.Cells(lastA, ATTRS_ENABLE_COL).Value = "YES"
+                wsA.Cells(lastA, ATTRS_TYPE_COL).Value = "ATRYBUT"
+                wsA.Cells(lastA, ATTRS_EXAMPLE_COL).Value = "'" & Mid(ln(i), p + 1)
+                known(nm) = 1: n = n + 1
+            End If
+        End If
+    Next i
+    If n > 0 Then Notify n & " new attribute(s) found in subfolders were added to sheet " & SH_ATTRS & " (YES)."
+Done:
+    On Error Resume Next
+    fso.DeleteFile path
+End Sub
