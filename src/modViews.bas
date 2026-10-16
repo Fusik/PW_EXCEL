@@ -180,6 +180,8 @@ Public Sub RenderDashboard(Optional ByVal resetPage As Boolean = False)
             .VerticalAlignment = xlCenter
             .Borders(xlInsideHorizontal).LineStyle = xlContinuous
             .Borders(xlInsideHorizontal).Color = RGB(205, 210, 220)
+            .Borders(xlInsideVertical).LineStyle = xlContinuous      ' pionowe linie miedzy wszystkimi kolumnami
+            .Borders(xlInsideVertical).Color = RGB(205, 210, 220)
         End With
         If iSt > 0 Then                              ' kolory wierszy wg Status (pasy tego samego statusu naraz)
             Dim s0 As Long, sNow As String, sPrev As String, clr As Long
