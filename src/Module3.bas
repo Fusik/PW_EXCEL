@@ -263,7 +263,7 @@ End Function
 Public Function MergeFoundAttributes(ByVal path As String, Optional ByVal exact As Boolean = False) As Long
     Dim fso As Object, st As Object, tx As String, ln() As String, i As Long, p As Long, q As Long, nm As String
     Set fso = CreateObject("Scripting.FileSystemObject")
-    If Not fso.FileExists(path) Then Exit Sub
+    If Not fso.FileExists(path) Then Exit Function
     On Error GoTo Done
     Set st = CreateObject("ADODB.Stream"): st.Charset = "utf-8": st.Open: st.LoadFromFile path
     If Not st.EOS Then tx = st.ReadText
