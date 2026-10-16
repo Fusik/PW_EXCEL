@@ -92,12 +92,12 @@ Public Sub EnsureSheetNames()
     On Error GoTo 0
 End Sub
 
-' Siatka wylaczona, kolumny A:B (nawigator/drzewo) i naglowek zablokowane (freeze panes) - tylko gdy Dashboard jest aktywny
+' Siatka wylaczona, naglowki wierszy/kolumn wlaczone, kolumny A:B (nawigator/drzewo) i naglowek zablokowane (freeze panes) - tylko gdy Dashboard jest aktywny
 Public Sub PrepareWindow()
     On Error Resume Next
     If ActiveSheet.Name <> SH_VIEW Then Exit Sub
     ActiveWindow.DisplayGridlines = False
-    ActiveWindow.DisplayHeadings = False
+    ActiveWindow.DisplayHeadings = True
     If ActiveWindow.SplitColumn <> 2 Or ActiveWindow.SplitRow <> VIEW_HEADER_ROW Then
         ActiveWindow.FreezePanes = False
         ActiveWindow.ScrollRow = 1: ActiveWindow.ScrollColumn = 1
