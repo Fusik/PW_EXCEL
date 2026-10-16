@@ -49,6 +49,7 @@ Public Const DATA_HEADER_ROW As Long = 11           ' Wiersz nagłówków; dane 
 Public Const FAST_FETCH As Boolean = True           ' True = szybkie pobieranie (DataTable, sekundy); przy bledzie samo przechodzi na wolny tryb
 Public Const DISCOVER_SUBFOLDER_ATTRS As Boolean = False  ' True = przy pobieraniu sprawdz atrybuty 1 pliku z kazdego podfolderu (uzupelnia brakujace kolumny)
 Public Const CHAIN_ATTR_SCAN As Boolean = True       ' True = UPDATE DATA po szybkiej aktualizacji uruchamia w tle skan atrybutow i (gdy sa nowe) dokladne pobranie
+Public Const SCAN_SAMPLES_PER_FOLDER As Long = 3   ' skan atrybutow: ile plikow z kazdego folderu sprawdzic (0 = wszystkie, bardzo wolno)
 Public Const GET_ALL_VERSIONS As Boolean = True     ' True = kazda rewizja pliku (A, B, C...) w osobnym wierszu; False = tylko biezaca
 
 ' --- Kolory (wartości RGB policzone: R + G*256 + B*65536) ---
