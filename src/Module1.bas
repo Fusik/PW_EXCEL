@@ -802,14 +802,14 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
     cap = m + nCsv + 1
     ReDim res(1 To cap, 1 To nc)
     Dim dIdx As Object, key As String, pth As String, nm As String
-    Dim oN As Long, oP As Long
+    Dim oNm As Long, oPa As Long
     For c = 1 To oldC
-        If StrComp(oldH(c), "File Name", vbTextCompare) = 0 Then oN = c
-        If StrComp(oldH(c), "PW Source Path", vbTextCompare) = 0 Then oP = c
+        If StrComp(oldH(c), "File Name", vbTextCompare) = 0 Then oNm = c
+        If StrComp(oldH(c), "PW Source Path", vbTextCompare) = 0 Then oPa = c
     Next c
     Set dIdx = CreateObject("Scripting.Dictionary"): dIdx.CompareMode = 1
     For r = 1 To m
-        nm = Trim(CStr(oldArr(r, oN))): pth = Trim(CStr(oldArr(r, oP)))
+        nm = Trim(CStr(oldArr(r, oNm))): pth = Trim(CStr(oldArr(r, oPa)))
         If nm <> "" And pth <> "" Then               ' pusty path = stary wiersz folderu - pomijamy
             cnt = cnt + 1
             For c = 1 To oldC
