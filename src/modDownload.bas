@@ -75,6 +75,7 @@ Public Sub StartPobieranie(ByVal linksText As String, ByVal target As String)
     f.Close
     
     Set f = fso.CreateTextFile(psPath, True, True)
+    f.WriteLine "try { $null = New-Item -ItemType Directory -Force -Path '" & ThisWorkbook.Path & "\PW_Logs'; Start-Transcript -Path ('" & ThisWorkbook.Path & "\PW_Logs\' + (Get-Date).ToString('yyyy-MM-dd_HHmmss') + '_download.log') -Force | Out-Null } catch {}"
     f.WriteLine "Add-Type -TypeDefinition @'"
     f.WriteLine "using System; using System.Text; using System.Runtime.InteropServices;"
     f.WriteLine "public class W {"
@@ -142,7 +143,7 @@ Public Sub StartPobieranie(ByVal linksText As String, ByVal target As String)
     f.WriteLine "Read-Host 'Enter aby zamknac'"
     f.Close
     
-    CreateObject("WScript.Shell").Run "powershell.exe -ExecutionPolicy Bypass -Sta -File """ & psPath & """", 1, False
+    CreateObject("WScript.Shell").Run "powershell.exe -NoExit -ExecutionPolicy Bypass -Sta -File """ & psPath & """", 1, False
 End Sub
 
 ' =======================================================================
