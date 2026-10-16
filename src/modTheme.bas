@@ -7,8 +7,10 @@ Option Explicit
 ' =======================================================================
 Private mFold As Long, mFile As Long, mChg As Long, mDel As Long
 Private mSub As String, mWarn As String, mStatus As String
+Private mPage As Long, mPages As Long, mTotal As Long, mFolder As String
+Private mDrawnTheme As String
 
-Private Type TTheme
+Public Type TTheme
     titleBg As Long
     titleFg As Long
     panelBg As Long
@@ -23,11 +25,12 @@ Private Type TTheme
     folderBg As Long
     changedBg As Long
     deletedBg As Long
+    newBg As Long
     cardBg As Long
     cardMuted As Long
 End Type
 
-Private Function GetTheme(ByVal nm As String) As TTheme
+Public Function GetTheme(ByVal nm As String) As TTheme
     Dim t As TTheme
     Select Case LCase(Trim(nm))
         Case "ciemny", "dark"
@@ -37,7 +40,7 @@ Private Function GetTheme(ByVal nm As String) As TTheme
             t.hdrBg = RGB(0, 90, 158): t.hdrFg = RGB(255, 255, 255)
             t.dataBg = RGB(30, 30, 30): t.dataFg = RGB(224, 224, 224)
             t.folderBg = CLR_FOLDER_DARK: t.changedBg = RGB(120, 100, 20): t.deletedBg = RGB(120, 40, 48)
-            t.cardBg = RGB(52, 52, 56): t.cardMuted = RGB(160, 160, 165)
+            t.cardBg = RGB(52, 52, 56): t.cardMuted = RGB(160, 160, 165): t.newBg = RGB(40, 85, 55)
         Case "niebieski", "blue"
             t.titleBg = RGB(0, 70, 127): t.titleFg = RGB(255, 255, 255)
             t.panelBg = RGB(228, 238, 250): t.panelFg = RGB(0, 56, 104)
@@ -45,7 +48,7 @@ Private Function GetTheme(ByVal nm As String) As TTheme
             t.hdrBg = RGB(0, 92, 170): t.hdrFg = RGB(255, 255, 255)
             t.dataBg = RGB(250, 252, 255): t.dataFg = RGB(30, 30, 30)
             t.folderBg = CLR_FOLDER_BLUE: t.changedBg = CLR_CHANGED: t.deletedBg = CLR_DELETED
-            t.cardBg = RGB(255, 255, 255): t.cardMuted = RGB(90, 110, 140)
+            t.cardBg = RGB(255, 255, 255): t.cardMuted = RGB(90, 110, 140): t.newBg = CLR_NEW
         Case Else
             t.titleBg = RGB(31, 56, 100): t.titleFg = RGB(255, 255, 255)
             t.panelBg = RGB(242, 246, 252): t.panelFg = RGB(31, 56, 100)
@@ -53,7 +56,7 @@ Private Function GetTheme(ByVal nm As String) As TTheme
             t.hdrBg = RGB(31, 56, 100): t.hdrFg = RGB(255, 255, 255)
             t.dataBg = RGB(255, 255, 255): t.dataFg = RGB(32, 32, 32)
             t.folderBg = CLR_FOLDER: t.changedBg = CLR_CHANGED: t.deletedBg = CLR_DELETED
-            t.cardBg = RGB(255, 255, 255): t.cardMuted = RGB(110, 120, 140)
+            t.cardBg = RGB(255, 255, 255): t.cardMuted = RGB(110, 120, 140): t.newBg = CLR_NEW
     End Select
     GetTheme = t
 End Function
@@ -102,84 +105,52 @@ Public Sub PrepareWindow()
     End If
 End Sub
 
-' Naklada motyw i uklad dashboardu na arkusz Dashboard; lastR = ostatni wiersz danych, lastC = ostatnia kolumna tabeli
-Public Sub StyleDashboard(wsV As Worksheet, ByVal lastR As Long, ByVal lastC As Long, ByVal subtitle As String, ByVal warn As String, ByVal statusTxt As String)
-    Dim t As TTheme, nm As String, i As Long, r As Long
-    Dim nFold As Long, nDel As Long, nFile As Long, nChg As Long
-    Dim selV As String, srchV As String, tgtV As String, thV As String
+Public Function CurrentTheme(wsV As Worksheet) As TTheme
+    Dim th As String
+    th = Trim(CStr(wsV.Range(THEME_CELL).Value))
+    If th = "" Then th = "Light"
+    CurrentTheme = GetTheme(th)
+End Function
+
+Public Sub SetPaging(ByVal page As Long, ByVal pages As Long, ByVal total As Long, ByVal folder As String)
+    mPage = page: mPages = pages: mTotal = total: mFolder = folder
+End Sub
+
+' Odswieza gorny panel: pelne przerysowanie tylko przy zmianie motywu / pierwszym uruchomieniu, inaczej tylko teksty kart i przyciskow
+Public Sub RefreshChrome(wsV As Worksheet, ByVal subtitle As String, ByVal warn As String, ByVal statusTxt As String)
+    Dim th As String, hasUi As Boolean, shp As Shape
+    th = Trim(CStr(wsV.Range(THEME_CELL).Value))
+    If th = "" Then th = "Light": wsV.Range(THEME_CELL).Value = th
+    On Error Resume Next
+    Set shp = wsV.Shapes("ui_title")
+    On Error GoTo 0
+    hasUi = Not shp Is Nothing
+    If Not hasUi Or StrComp(th, mDrawnTheme, vbTextCompare) <> 0 Then
+        StyleDashboard wsV, subtitle, warn, statusTxt
+    Else
+        DataStats mFold, mFile, mChg, mDel
+        mSub = subtitle: mWarn = warn: mStatus = Replace(statusTxt, "Last Database Update: ", "")
+        DrawHeader wsV
+        Dim uf As Object
+        For Each uf In VBA.UserForms
+            If uf.Name = "frmNavigator" Then uf.ApplyNavTheme
+        Next uf
+    End If
+End Sub
+
+' Pelne przerysowanie panelu i tla arkusza dla biezacego motywu
+Public Sub StyleDashboard(wsV As Worksheet, ByVal subtitle As String, ByVal warn As String, ByVal statusTxt As String)
+    Dim t As TTheme
+    Dim selV As String, srchV As String, tgtV As String, thV As String, fldV As String, pgV As String
     On Error Resume Next
     selV = CStr(wsV.Range(VIEW_SELECTOR).Value): srchV = CStr(wsV.Range(VIEW_SEARCH).Value)
     tgtV = CStr(wsV.Range(TARGET_CELL).Value): thV = CStr(wsV.Range(THEME_CELL).Value)
-    If Trim(thV) = "" Then thV = "Light": wsV.Range(THEME_CELL).Value = thV
-    nm = thV
-    t = GetTheme(nm)
-    If lastR < VIEW_HEADER_ROW Then lastR = VIEW_HEADER_ROW
-    If lastC < 12 Then lastC = 12
+    fldV = CStr(wsV.Range(FOLDER_CELL).Value): pgV = CStr(wsV.Range(PAGE_CELL).Value)
+    If Trim(thV) = "" Then thV = "Light"
+    t = GetTheme(thV)
     Application.ScreenUpdating = False
+    wsV.Cells.Interior.Color = t.dataBg                      ' cale tlo arkusza w kolorze motywu
     
-    ' --- zmienione komorki zapamietaj przed nadpisaniem koloru ---
-    Dim chg As Collection, fc As Range, firstAddr As String, scan As Range
-    Set chg = New Collection
-    Application.FindFormat.Clear
-    Application.FindFormat.Interior.Color = CLR_CHANGED
-    If lastR > VIEW_HEADER_ROW Then
-        Set scan = wsV.Range(wsV.Cells(VIEW_HEADER_ROW + 1, 2), wsV.Cells(lastR, lastC))
-        Set fc = scan.Find(What:="", SearchFormat:=True)
-        If Not fc Is Nothing Then
-            firstAddr = fc.Address
-            Do
-                chg.Add fc.Address
-                Set fc = scan.FindNext(fc)
-            Loop While Not fc Is Nothing And chg.Count < 5000 And fc.Address <> firstAddr
-        End If
-    End If
-    Application.FindFormat.Clear
-    
-    ' --- tlo za tabela i dane ---
-    wsV.Cells.Interior.Color = t.dataBg                      ' cale tlo arkusza (takze poza tabela) w kolorze motywu
-    wsV.Range(wsV.Columns(lastC + 1), wsV.Columns(40)).Interior.Color = t.dataBg
-    wsV.Range(wsV.Rows(lastR + 1), wsV.Rows(lastR + 200)).Interior.Color = t.dataBg
-    If lastR > VIEW_HEADER_ROW Then
-        With wsV.Range(wsV.Cells(VIEW_HEADER_ROW + 1, 1), wsV.Cells(lastR, lastC))
-            .Interior.Color = t.dataBg
-            .Font.Color = t.dataFg
-            .Font.Name = "Segoe UI"
-            .Font.Size = 10
-            .VerticalAlignment = xlCenter
-            .Borders(xlInsideHorizontal).Color = RGB(205, 210, 220)
-            .Borders(xlInsideHorizontal).LineStyle = xlContinuous
-        End With
-        For r = 1 To gRowCount
-            Select Case gRowType(r)
-                Case 1
-                    nFold = nFold + 1
-                    With wsV.Range(wsV.Cells(VIEW_HEADER_ROW + r, 1), wsV.Cells(VIEW_HEADER_ROW + r, lastC))
-                        .Interior.Color = t.folderBg: .Font.Bold = True
-                    End With
-                Case 2
-                    nDel = nDel + 1
-                    wsV.Range(wsV.Cells(VIEW_HEADER_ROW + r, 1), wsV.Cells(VIEW_HEADER_ROW + r, lastC)).Interior.Color = t.deletedBg
-                Case Else
-                    nFile = nFile + 1
-            End Select
-        Next r
-        For i = 1 To chg.Count
-            wsV.Range(chg(i)).Interior.Color = t.changedBg
-        Next i
-        nChg = chg.Count
-    End If
-    
-    ' --- naglowek tabeli ---
-    wsV.Range(wsV.Cells(VIEW_HEADER_ROW, 1), wsV.Cells(VIEW_HEADER_ROW, lastC)).UnMerge
-    If lastR <= VIEW_HEADER_ROW Then wsV.Range(wsV.Cells(VIEW_HEADER_ROW, 2), wsV.Cells(VIEW_HEADER_ROW, lastC)).ClearContents
-    With wsV.Range(wsV.Cells(VIEW_HEADER_ROW, 1), wsV.Cells(VIEW_HEADER_ROW, lastC))
-        .Interior.Color = t.hdrBg: .Font.Color = t.hdrFg: .Font.Bold = True: .Font.Name = "Segoe UI": .Font.Size = 10
-        .VerticalAlignment = xlCenter
-    End With
-    wsV.Rows(VIEW_HEADER_ROW).RowHeight = 28
-    wsV.Cells(VIEW_HEADER_ROW, 1).Value = "FOLDER TREE  (click here = show all)"
-    
-    ' --- panel gorny: wiersze 1-7 to tylko tlo; elementy (karty, pola, przyciski) to ksztalty niezalezne od szerokosci kolumn ---
     With wsV.Range(wsV.Cells(1, 1), wsV.Cells(7, 40))
         .UnMerge
         .Validation.Delete
@@ -192,14 +163,16 @@ Public Sub StyleDashboard(wsV As Worksheet, ByVal lastR As Long, ByVal lastC As 
     With wsV.Range(wsV.Cells(7, 1), wsV.Cells(7, 40)).Borders(xlEdgeBottom)
         .Color = t.accent: .Weight = xlMedium
     End With
-    ' stan interfejsu przechowywany w ukrytych komorkach (kolumny AA:AB)
+    ' stan interfejsu w ukrytych komorkach (kolumny AA:AB)
     wsV.Range(VIEW_SELECTOR).Value = selV: wsV.Range(VIEW_SEARCH).Value = srchV
     wsV.Range(TARGET_CELL).Value = tgtV: wsV.Range(THEME_CELL).Value = thV
+    wsV.Range(FOLDER_CELL).Value = fldV: wsV.Range(PAGE_CELL).Value = pgV
     wsV.Range("AA:AB").Font.Color = t.panelBg
     wsV.Columns("AA:AB").Hidden = True
     
-    mFold = nFold: mFile = nFile: mChg = nChg: mDel = nDel
+    DataStats mFold, mFile, mChg, mDel
     mSub = subtitle: mWarn = warn: mStatus = Replace(statusTxt, "Last Database Update: ", "")
+    mDrawnTheme = thV
     DrawHeader wsV
     PrepareWindow
     Dim uf As Object
@@ -259,14 +232,13 @@ Public Sub DrawHeader(wsV As Worksheet)
     
     ' karty KPI
     Dim caps As Variant, vals As Variant, clrs As Variant, wds As Variant
-    caps = Array("FOLDERS", "FILES", "CHANGED CELLS", "DELETED FROM PW", "LAST UPDATE")
+    caps = Array("FOLDERS", "FILES", "NEW / CHANGED", "DELETED FROM PW", "LAST UPDATE")
     vals = Array(CStr(mFold), CStr(mFile), CStr(mChg), CStr(mDel), mStatus)
     clrs = Array(RGB(47, 117, 181), RGB(0, 150, 136), RGB(237, 125, 49), RGB(214, 69, 65), t.accent)
     wds = Array(130, 130, 150, 160, 300)
     x = 10: y = wsV.Rows(2).Top + 6
     For k = 0 To 4
         Set shp = UiShape(wsV, "ui_card" & k, msoShapeRectangle, x, y, CDbl(wds(k)), 50, t.cardBg, RGB(205, 210, 220), CStr(caps(k)) & vbCr & CStr(vals(k)), t.cardMuted, 8, "", False)
-        shp.Line.ForeColor.RGB = t.panelBg
         With shp.TextFrame2.TextRange
             .Paragraphs(1).Font.Size = 8: .Paragraphs(1).Font.Bold = msoTrue
             .Paragraphs(2).Font.Size = IIf(k = 4, 12, 20): .Paragraphs(2).Font.Bold = msoTrue
@@ -302,19 +274,24 @@ Public Sub DrawHeader(wsV As Worksheet)
         x = x + wd(k) + 8
     Next k
     
-    ' legenda
+    ' legenda + stronicowanie
     y = wsV.Rows(5).Top + 4: x = 10
-    Set shp = UiShape(wsV, "ui_legend", msoShapeRectangle, x, y, 110, 20, t.panelBg, -1, "COLOR LEGEND", t.cardMuted, 8, "", False)
-    shp.TextFrame2.TextRange.Font.Bold = msoTrue: x = x + 112
+    Set shp = UiShape(wsV, "ui_legend", msoShapeRectangle, x, y, 90, 20, t.panelBg, -1, "COLOR LEGEND", t.cardMuted, 8, "", False)
+    shp.TextFrame2.TextRange.Font.Bold = msoTrue: x = x + 92
     Dim ct As Variant, cb As Variant
-    ct = Array("Folder", "Changed value", "Deleted from PW", "Regular file")
-    cb = Array(t.folderBg, t.changedBg, t.deletedBg, t.dataBg)
+    ct = Array("New", "Changed", "Deleted from PW", "Unchanged")
+    cb = Array(t.newBg, t.changedBg, t.deletedBg, t.dataBg)
     For k = 0 To 3
-        Set shp = UiShape(wsV, "ui_chip" & k, msoShapeRectangle, x, y, 130, 20, CLng(cb(k)), t.accent, CStr(ct(k)), t.dataFg, 9, "", True)
-        x = x + 136
+        Set shp = UiShape(wsV, "ui_chip" & k, msoShapeRectangle, x, y, 112, 20, CLng(cb(k)), t.accent, CStr(ct(k)), t.dataFg, 9, "", True)
+        x = x + 116
     Next k
-    Set shp = UiShape(wsV, "ui_hint", msoShapeRectangle, x + 10, y, 520, 20, t.panelBg, -1, "Click a folder in column A to filter. Click the header (A8) to show all.", t.cardMuted, 8, "", False)
-    shp.TextFrame2.TextRange.Font.Italic = msoTrue
+    x = x + 20
+    Set shp = UiShape(wsV, "ui_prev", msoShapeRoundedRectangle, x, y, 70, 20, t.inputBg, t.accent, ChrW(9664) & " PREV", t.inputFg, 9, wn & "PagePrev", True): x = x + 74
+    Dim pg As String
+    pg = "Page " & mPage & " / " & mPages & "   |   " & mTotal & " results" & IIf(mFolder <> "", "   |   folder: " & Replace(Left(mFolder, Len(mFolder) - 1), "\", " > "), "")
+    Set shp = UiShape(wsV, "ui_page", msoShapeRectangle, x, y, 430, 20, t.panelBg, -1, pg, t.panelFg, 9, wn & "ClearFolderFilter", False)
+    shp.TextFrame2.TextRange.Font.Bold = msoTrue: x = x + 434
+    Set shp = UiShape(wsV, "ui_next", msoShapeRoundedRectangle, x, y, 70, 20, t.inputBg, t.accent, "NEXT " & ChrW(9654), t.inputFg, 9, wn & "PageNext", True)
     On Error GoTo 0
 End Sub
 
@@ -367,7 +344,7 @@ End Sub
 Public Sub EditSearch()
     Dim ws As Worksheet, v As String
     Set ws = ThisWorkbook.Sheets(SH_VIEW)
-    v = InputBox("Search phrase (min. 2 characters; leave empty to clear):", "Search", CStr(ws.Range(VIEW_SEARCH).Value))
+    v = InputBox("Search phrase (empty = clear)." & vbCrLf & vbCrLf & "  HRX            contains HRX in any column" & vbCrLf & "  HRX-0??-*      * = any text, ? = any single character" & vbCrLf & "  filename:*HRX*   search only in a column (filename, path, link, updater, updated, status or any column name)" & vbCrLf & "  filename:"my file*"   quotes keep spaces together" & vbCrLf & "  -pdf  -path:Templates   exclude" & vbCrLf & "  several terms = all must match", "Search", CStr(ws.Range(VIEW_SEARCH).Value))
     If StrPtr(v) = 0 Then Exit Sub                  ' Cancel
     ws.Range(VIEW_SEARCH).Value = v                 ' zmiana komorki uruchamia filtr
     DrawHeader ws

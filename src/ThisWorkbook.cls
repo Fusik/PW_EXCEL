@@ -18,12 +18,7 @@ Private Sub Workbook_Open()
     Dim hasUi As Boolean
     hasUi = False
     hasUi = Not wsDash.Shapes("ui_title") Is Nothing
-    If Not hasUi Then                               ' pierwsze otwarcie: narysuj dashboard (potem odswieza go BuildView)
-        Application.EnableEvents = False
-        If Trim(CStr(wsDash.Range(VIEW_SELECTOR).Value)) = "" Or Trim(CStr(wsDash.Range(VIEW_SELECTOR).Value)) = "Wszystko" Then wsDash.Range(VIEW_SELECTOR).Value = CStr(ThisWorkbook.Sheets(SH_VIEWS).Cells(VIEWS_FIRST_ROW, 1).Value)
-        StyleDashboard wsDash, VIEW_HEADER_ROW, 12, "No data yet - paste a PW folder link in sheet Folders or click UPDATE DATA", "", "-"
-        Application.EnableEvents = True
-    End If
+    If Not hasUi Then RenderDashboard True          ' pierwsze otwarcie: narysuj dashboard (potem odswieza go makro)
     PrepareWindow
     frmNavigator.Show 0
     frmNavigator.DockToView
@@ -40,16 +35,13 @@ End Sub
 Private Sub Workbook_SheetChange(ByVal Sh As Object, ByVal Target As Range)
     On Error GoTo Fail
     If Sh.Name = SH_VIEW Then
-        If Not Intersect(Target, Sh.Range(VIEW_SELECTOR & "," & THEME_CELL)) Is Nothing Then
+        If Not Intersect(Target, Sh.Range("AB1:AB6")) Is Nothing Then   ' ukryte komorki stanu: widok, szukaj, motyw, folder, strona
             Application.EnableEvents = False
-            BuildView
+            OnDashboardChange Target
             Application.EnableEvents = True
         End If
-        If Not Intersect(Target, Sh.Range(VIEW_SEARCH)) Is Nothing Then
-            Application.EnableEvents = False
-            FilterRows Sh, VIEW_HEADER_ROW, CStr(Sh.Range(VIEW_SEARCH).Value)
-            Application.EnableEvents = True
-        End If
+    ElseIf Sh.Name = SH_DATA Then
+        InvalidateData                                  ' reczna edycja bazy - przeczytaj ja ponownie przy nastepnym zapytaniu
     ElseIf Sh.Name = SH_FOLDERS Then
         If Not Intersect(Target, Sh.Range(Sh.Cells(FOLDERS_FIRST_ROW, FOLDERS_LINK_COL), Sh.Cells(Sh.Rows.Count, FOLDERS_LINK_COL))) Is Nothing Then
             OnFolderLinkPasted Intersect(Target, Sh.Range(Sh.Cells(FOLDERS_FIRST_ROW, FOLDERS_LINK_COL), Sh.Cells(Sh.Rows.Count, FOLDERS_LINK_COL)))
@@ -61,7 +53,7 @@ Fail:
     Notify "Error: " & Err.Description
 End Sub
 
-' Klik w kolumne A widoku: folder = filtruje tabele do jego zawartosci, naglowek "Drzewo folderow" = pokaz wszystko
+' Klik w naglowek FOLDERS (A8) = zdejmij filtr folderu (pokaz wszystko)
 Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Range)
     Static busy As Boolean
     If busy Then Exit Sub
@@ -70,11 +62,7 @@ Private Sub Workbook_SheetSelectionChange(ByVal Sh As Object, ByVal Target As Ra
     On Error GoTo Done
     busy = True
     Application.EnableEvents = False
-    If Target.Row = VIEW_HEADER_ROW Then
-        ShowAllFolders
-    ElseIf Target.Row > VIEW_HEADER_ROW Then
-        If IsFolderColor(Target.Interior.Color) Then ShowFolderRows Target.Row
-    End If
+    If Target.Row = VIEW_HEADER_ROW Then ClearFolderFilter      ' naglowek FOLDERS = pokaz wszystko
 Done:
     Application.EnableEvents = True
     busy = False

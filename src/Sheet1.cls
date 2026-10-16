@@ -9,5 +9,5 @@ Attribute VB_Customizable = True
 Attribute VB_Control = "TextBox1, 60, 0, MSForms, TextBox"
 Private Sub TextBox1_Change()
     On Error Resume Next
-    ApplySearch Me.TextBox1.Text                    ' Filtrowanie listy po wpisanej frazie (logika w Module1)
+    ' PW_Data to czysta baza - szukanie jest w Dashboard
 End Sub

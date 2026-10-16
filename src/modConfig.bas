@@ -56,6 +56,12 @@ Public Const CLR_WHITE As Long = 16777215
 Public Const CLR_FOLDER_DARK As Long = 6044710     ' RGB(38,60,92)    - folder w motywie Ciemny
 Public Const CLR_FOLDER_BLUE As Long = 16114125    ' RGB(205,225,245) - folder w motywie Niebieski
 Public Const TARGET_CELL As String = "AB4"          ' folder docelowy pobierania (Dashboard)
+Public Const FOLDER_CELL As String = "AB5"          ' aktualnie wybrany folder (klucz z koncowym \), pusty = wszystkie
+Public Const PAGE_CELL As String = "AB6"            ' numer biezacej strony wynikow
+Public Const PAGE_SIZE As Long = 500                ' wierszy na strone Dashboard (Dashboard jest tylko oknem na PW_Data)
+Public Const COL_STATUS As String = "Status"        ' kolumna systemowa PW_Data: NEW / CHANGED / DELETED
+Public Const COL_CHANGES As String = "Change Info"  ' kolumna systemowa PW_Data: opis zmian
+Public Const CLR_NEW As Long = 14348258             ' RGB(226,239,218) - nowy plik
 Public Const THEME_CELL As String = "AB3"           ' wybor motywu w arkuszu Widok (Jasny / Ciemny / Niebieski)
 
 ' Czy kolor to tlo wiersza folderu w ktoryms z motywow (wykrywanie folderow nie zalezy od motywu)

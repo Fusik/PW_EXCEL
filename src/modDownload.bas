@@ -10,31 +10,38 @@ Public Sub PobierzPlikiPW()
     frmPobierz.Show vbModeless                      ' formularz: lista linkow + folder docelowy
 End Sub
 
-' Linki PW z zaznaczenia w Widoku: kilka wierszy = te wiersze + pliki zaznaczonych folderow; jedna komorka = wszystko (bez wierszy ukrytych wyszukiwaniem)
+' Linki PW do pobrania: zaznaczone wiersze Dashboard (kilka wierszy), a przy jednej komorce - WSZYSTKIE wyniki biezacego zapytania (wszystkie strony)
 Public Function LinksFromSelection() As String
-    Dim wsV As Worksheet, lastC As Long, c As Long, linkCol As Long, r As Long, lnk As String
+    Dim wsV As Worksheet, iLink As Long, i As Long, ix As Long, v As String, sb As String
     Set wsV = ThisWorkbook.Sheets(SH_VIEW)
-    lastC = wsV.Cells(VIEW_HEADER_ROW, wsV.Columns.Count).End(xlToLeft).Column
-    For c = 1 To lastC
-        If StrComp(Trim(CStr(wsV.Cells(VIEW_HEADER_ROW, c).Value)), "PW Link", vbTextCompare) = 0 Then linkCol = c: Exit For
-    Next c
-    If linkCol = 0 Then Notify "The view has no 'PW Link' column - add it to the view (sheet Views).": Exit Function
-    Dim multi As Boolean, folderSel As Boolean, inSel As Boolean, skipHidden As Boolean, lastR As Long
-    lastR = wsV.UsedRange.Row + wsV.UsedRange.Rows.Count - 1
-    multi = (ActiveSheet.Name = SH_VIEW And Selection.Rows.Count > 1)
-    skipHidden = (Len(Trim(CStr(wsV.Range(VIEW_SEARCH).Value))) >= 2)
-    For r = VIEW_HEADER_ROW + 1 To lastR
-        If IsFolderColor(wsV.Cells(r, 1).Interior.Color) Then
-            folderSel = multi And Not Intersect(wsV.Rows(r), Selection) Is Nothing
-        Else
-            inSel = Not multi
-            If multi Then inSel = folderSel Or Not Intersect(wsV.Rows(r), Selection) Is Nothing
-            If inSel And Not (skipHidden And wsV.Rows(r).Hidden) Then
-                If wsV.Cells(r, linkCol).Hyperlinks.Count > 0 Then lnk = wsV.Cells(r, linkCol).Hyperlinks(1).Address Else lnk = Trim(CStr(wsV.Cells(r, linkCol).Value))
-                If UCase(Left(lnk, 3)) = "PW:" And InStr(lnk, "/Documents/D{") > 0 Then LinksFromSelection = LinksFromSelection & lnk & vbLf
-            End If
+    EnsureData
+    iLink = ColOf("PW Link")
+    If iLink = 0 Or gHits = 0 Then Notify "No results with a PW Link - run UPDATE DATA first.": Exit Function
+    Dim first As Long, page As Long, r1 As Long, r2 As Long, multi As Boolean
+    page = Val(CStr(wsV.Range(PAGE_CELL).Value)): If page < 1 Then page = 1
+    first = (page - 1) * PAGE_SIZE + 1
+    If ActiveSheet.Name = SH_VIEW Then
+        If Selection.Rows.Count > 1 Then
+            r1 = Selection.Row: r2 = Selection.Row + Selection.Rows.Count - 1
+            If r1 <= VIEW_HEADER_ROW Then r1 = VIEW_HEADER_ROW + 1
+            multi = (r2 >= r1)
         End If
-    Next r
+    End If
+    If multi Then
+        For i = r1 To r2
+            ix = first + (i - VIEW_HEADER_ROW) - 1
+            If ix >= 1 And ix <= gHits Then
+                v = CStr(gData(gIdx(ix), iLink))
+                If UCase(Left(v, 3)) = "PW:" Then sb = sb & v & vbLf
+            End If
+        Next i
+    Else
+        For i = 1 To gHits
+            v = CStr(gData(gIdx(i), iLink))
+            If UCase(Left(v, 3)) = "PW:" Then sb = sb & v & vbLf
+        Next i
+    End If
+    LinksFromSelection = sb
 End Function
 
 ' Start automatu pobierania: linksText = linki PW (po jednym w wierszu), target = folder docelowy
@@ -150,7 +157,8 @@ Public Sub PrzeniesDanePW()
     Application.CutCopyMode = False
     src.Close False
     On Error Resume Next
-    BuildView
+    InvalidateData
+    RenderDashboard True
     On Error GoTo 0
     Application.EnableEvents = True
     Application.ScreenUpdating = True
@@ -170,6 +178,7 @@ Public Sub EnsureViewButton()
     On Error Resume Next
     ThisWorkbook.Sheets(SH_DATA).Shapes("btnUpdate").Delete          ' PW_Data to czysta baza - bez przyciskow
     ThisWorkbook.Sheets(SH_DATA).Shapes("btnNavigator").Delete
+    ThisWorkbook.Sheets(SH_DATA).OLEObjects("TextBox1").Delete          ' szukanie jest w Dashboard
     Set ws = ThisWorkbook.Sheets(SH_VIEW)
     Set shp = ws.Shapes("btnGetFiles")
     On Error GoTo 0

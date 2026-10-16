@@ -124,119 +124,62 @@ End Sub
 ' INICJALIZACJA FORMULARZA: Budowanie drzewka z Arkusza 1
 ' =====================================================================
 Private Sub UserForm_Initialize()
-    Dim ws As Worksheet
-    Set ws = ThisWorkbook.Sheets(SH_DATA)
-    
-    Dim maxR As Long, r As Long
-    Dim pathCol As Long, nameCol As Long
-    
-    Dim fCell As Range
-    Set fCell = ws.rows(11).Find(What:="PW Source Path", LookIn:=xlValues, LookAt:=xlWhole)
-    If fCell Is Nothing Then Exit Sub
-    pathCol = fCell.Column
-    nameCol = 1
-    
-    Set fCell = ws.Columns(1).Find(What:="*", LookIn:=xlFormulas, SearchOrder:=xlByRows, SearchDirection:=xlPrevious)
-    If Not fCell Is Nothing Then maxR = fCell.Row Else Exit Sub
-    
+    Dim i As Long, j As Long, n As Long, pth As String, segs() As String, key As String, parentKey As String
+    Dim cnt As Object, ord As Object, iPath As Long
+    On Error Resume Next
+    EnsureData
+    iPath = ColOf("PW Source Path")
+    On Error GoTo 0
     Me.TreeView1.Nodes.Clear
     Me.TreeView1.LineStyle = tvwRootLines
     Me.TreeView1.Indentation = 12
+    If gN = 0 Or iPath = 0 Then Exit Sub
     
-    Dim fullPath As String, fName As String
-    Dim arrFolders() As String, i As Long
-    Dim parentKey As String, currentKey As String
-    Dim newNode As MSComctlLib.Node
+    Set cnt = CreateObject("Scripting.Dictionary"): cnt.CompareMode = 1     ' klucz folderu (z \) -> liczba plikow w calym poddrzewie
+    Set ord = CreateObject("Scripting.Dictionary"): ord.CompareMode = 1     ' unikalne sciezki w kolejnosci wystapienia
+    For i = 1 To gN
+        pth = Replace(Trim(CStr(gData(i, iPath))), "/", "\")
+        If pth <> "" Then
+            If Not ord.exists(pth) Then ord(pth) = 1
+            segs = Split(pth, "\")
+            key = ""
+            For j = 0 To UBound(segs)
+                If Trim(segs(j)) <> "" Then
+                    key = key & segs(j) & "\"
+                    cnt(key) = cnt(key) + 1
+                End If
+            Next j
+        End If
+    Next i
     
-    For r = 12 To maxR
-        fName = Trim(ws.Cells(r, nameCol).Value)
-        fullPath = Trim(ws.Cells(r, pathCol).Value)
-        
-        If fName <> "" Then
-            If fullPath = "" Then fullPath = fName
-            fullPath = Replace(fullPath, "/", "\")
-            arrFolders = Split(fullPath, "\")
-            parentKey = ""
-            
-            For i = LBound(arrFolders) To UBound(arrFolders)
-                If Trim(arrFolders(i)) <> "" Then
-                    currentKey = parentKey & arrFolders(i) & "\"
-                    
-                    On Error Resume Next
+    Dim p As Variant, nd As MSComctlLib.Node
+    For Each p In ord.Keys
+        segs = Split(CStr(p), "\")
+        parentKey = "": key = ""
+        For j = 0 To UBound(segs)
+            If Trim(segs(j)) <> "" Then
+                key = key & segs(j) & "\"
+                If Not NodeExists(key) Then
                     If parentKey = "" Then
-                        Set newNode = Me.TreeView1.Nodes.Add(Key:=currentKey, Text:=arrFolders(i))
+                        Set nd = Me.TreeView1.Nodes.Add(Key:=key, Text:=segs(j) & "  (" & cnt(key) & ")")
                     Else
-                        Set newNode = Me.TreeView1.Nodes.Add(Relative:=parentKey, Relationship:=tvwChild, Key:=currentKey, Text:=arrFolders(i))
+                        Set nd = Me.TreeView1.Nodes.Add(Relative:=parentKey, Relationship:=tvwChild, Key:=key, Text:=segs(j) & "  (" & cnt(key) & ")")
                     End If
-                    On Error GoTo 0
-                    
-                    If Not newNode Is Nothing Then newNode.Expanded = False
-                    parentKey = currentKey
+                    nd.Expanded = (parentKey = "")
                 End If
-            Next i
-            
-            If Trim(ws.Cells(r, pathCol).Value) <> "" Then
-                Dim fileKey As String
-                fileKey = parentKey & fName & "_" & r
-                
-                On Error Resume Next
-                Set newNode = Me.TreeView1.Nodes.Add(Relative:=parentKey, Relationship:=tvwChild, Key:=fileKey, Text:=fName)
-                On Error GoTo 0
-                
-                If Not newNode Is Nothing Then
-                    newNode.Tag = r
-                    If ws.Cells(r, 1).Interior.Color = CLR_DELETED Then
-                        newNode.ForeColor = vbRed
-                    Else
-                        newNode.ForeColor = RGB(0, 102, 204)
-                    End If
-                End If
-            Else
-                ' Przypisanie wiersza zielonego nagłówka folderu
-                On Error Resume Next
-                Me.TreeView1.Nodes(currentKey).Tag = r
-                On Error GoTo 0
+                parentKey = key
             End If
-        End If
-    Next r
-    
-    ' Post-processing: Barwienie usuniętych (czerwonych) folderów
-    Dim n As MSComctlLib.Node
-    For Each n In Me.TreeView1.Nodes
-        If n.Parent Is Nothing Then
-            CheckAndColorFolders n
-        End If
-    Next n
+        Next j
+    Next p
+    Me.TreeView1.Sorted = True
 End Sub
 
-' =====================================================================
-' FUNKCJA REKURENCYJNA: Oznacza foldery na czerwono jeśli wszystko usunięto
-' =====================================================================
-Private Function CheckAndColorFolders(ByVal n As MSComctlLib.Node) As Boolean
-    Dim childNode As MSComctlLib.Node
-    Dim allRed As Boolean
-    
-    If n.Children = 0 Then
-        CheckAndColorFolders = (n.ForeColor = vbRed)
-    Else
-        allRed = True
-        Set childNode = n.Child
-        
-        Do While Not childNode Is Nothing
-            If Not CheckAndColorFolders(childNode) Then
-                allRed = False
-            End If
-            Set childNode = childNode.Next
-        Loop
-        
-        If allRed Then
-            n.ForeColor = vbRed
-            CheckAndColorFolders = True
-        Else
-            n.ForeColor = vbBlack
-            CheckAndColorFolders = False
-        End If
-    End If
+Private Function NodeExists(ByVal key As String) As Boolean
+    Dim nd As MSComctlLib.Node
+    On Error Resume Next
+    Set nd = Me.TreeView1.Nodes(key)
+    NodeExists = Not nd Is Nothing
+    On Error GoTo 0
 End Function
 
 ' =====================================================================
@@ -266,33 +209,9 @@ End Sub
 ' INTERAKCJA: Nawigowanie po arkuszu z drzewka
 ' =====================================================================
 Private Sub TreeView1_NodeClick(ByVal Node As MSComctlLib.Node)
-    Dim targetRow As Long
-    Dim ws As Worksheet
-    Set ws = ThisWorkbook.Sheets(SH_DATA)
-    
-    Dim wsV As Worksheet, vRow As Long, sr As Long
-    Set wsV = ThisWorkbook.Sheets(SH_VIEW)
     On Error Resume Next
-    If Right(Node.Key, 1) = "\" Then                                ' folder: filtruj widok do jego zawartosci
-        wsV.Activate
-        vRow = ShowFolderByKey(Node.Key)
-    ElseIf Node.Tag <> "" And IsNumeric(Node.Tag) Then              ' plik: odslon wiersz w widoku
-        targetRow = CLng(Node.Tag)
-        vRow = targetRow - DATA_HEADER_ROW + VIEW_HEADER_ROW        ' wiersz Baza_PW -> wiersz w Widok (kopia 1:1)
-        If vRow > VIEW_HEADER_ROW Then
-            wsV.Activate
-            wsV.Rows(vRow).Hidden = False
-        End If
-    End If
-    If vRow > VIEW_HEADER_ROW Then
-        wsV.Cells(vRow, 2).Select
-        sr = vRow - 10: If sr < VIEW_HEADER_ROW + 1 Then sr = VIEW_HEADER_ROW + 1
-        ActiveWindow.ScrollRow = sr
-    End If
+    ThisWorkbook.Sheets(SH_VIEW).Activate
+    SetFolderFilter Node.Key                        ' tabela w Dashboard pokazuje zawartosc tego folderu (zapytanie na tablicy w pamieci)
     On Error GoTo 0
-    
-    ' Zwijanie/Rozwijanie folderów po kliknięciu w samą nazwę
-    If Node.Children > 0 Then
-        Node.Expanded = Not Node.Expanded
-    End If
+    If Node.Children > 0 Then Node.Expanded = Not Node.Expanded
 End Sub

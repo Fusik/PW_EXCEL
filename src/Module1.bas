@@ -94,19 +94,6 @@ Private Sub RunDownload()                           ' Właściwa logika orkiestr
     psArrayString = GetAttributesFromSheet3()       ' Wywołanie funkcji pobierającej atrybuty i przypisanie wyniku do zmiennej
     If psArrayString = "" Then Exit Sub             ' Jeśli funkcja nie zwróciła żadnych atrybutów, przerwij działanie makra
     
-    Dim lastColHeaders As Long                      ' Deklaracja zmiennej dla numeru ostatniej kolumny z nagłówkiem
-    lastColHeaders = ws1.Cells(11, ws1.Columns.count).End(xlToLeft).Column ' Znalezienie ostatniej niepustej kolumny w 11 wierszu arkusza 1
-    If lastColHeaders < 1 Then lastColHeaders = 1   ' Zabezpieczenie przed błędem, gdyby arkusz był całkowicie pusty
-    
-    ws1.Range(ws1.Cells(11, 1), ws1.Cells(11, lastColHeaders)).ClearContents ' Wyczyszczenie dotychczasowych nagłówków w wierszu 11
-    ws1.Cells(11, 1).Value = "File Name"            ' Ustawienie stałego nagłówka kolumny 1
-    ws1.Cells(11, 2).Value = "PW Source Path"       ' Ustawienie stałego nagłówka kolumny 2
-    ws1.Cells(11, 3).Value = "PW Link"              ' Ustawienie stałego nagłówka kolumny 3
-    ws1.Cells(11, 4).Value = "Updater"              ' Ustawienie stałego nagłówka kolumny 4
-    ws1.Cells(11, 5).Value = "Updated"              ' Ustawienie stałego nagłówka kolumny 5
-    StyleHeader ws1.Range("A11:E11")                ' Jednolity styl nagłówków
-    
-    CopyHeadersFromSheet3                           ' Wywołanie procedury kopiującej nagłówki atrybutów z arkusza 3
     InitLogSheet                                    ' Wywołanie procedury inicjalizującej arkusz z logami
     
     Dim txtFoldersPath As String                    ' Deklaracja zmiennej na ścieżkę pliku z folderami wejściowymi
@@ -185,25 +172,9 @@ Private Sub RunFinish()
     ws1.Cells(8, 1).Font.Bold = True                ' Pogrubienie tekstu w komórce A8
     ws1.Cells(8, 1).Font.Color = RGB(0, 102, 204)   ' Ustawienie niebieskiego koloru czcionki w A8
     
-    ' --- [NOWE] TWORZENIE TABELI PW_DATA (NA KOŃCU) ---
-    Dim finalLastRow As Long                        ' Deklaracja zmiennej dla ostatniego wiersza wygenerowanych danych
-    Dim finalLastCol As Long                        ' Deklaracja zmiennej dla ostatniej kolumny wygenerowanych danych
-    Dim tableRange As Range                         ' Deklaracja obiektu zakresu pod nową tabelę
-    
-    finalLastRow = ws1.Cells(ws1.rows.count, 1).End(xlUp).Row ' Znalezienie ostatecznego ostatniego wiersza po wszystkich operacjach makra
-    finalLastCol = ws1.Cells(11, ws1.Columns.count).End(xlToLeft).Column ' Znalezienie ostatecznej ostatniej użytej kolumny z nagłówkiem
-    
-    If finalLastRow >= 11 Then                      ' Upewnienie się, że mamy przynajmniej nagłówki (nie tworzy tabeli na zupełnie pustym arkuszu)
-        Set tableRange = ws1.Range(ws1.Cells(11, 1), ws1.Cells(finalLastRow, finalLastCol)) ' Określenie pełnych granic danych pod nową tabelę
-        Set lo = ws1.ListObjects.Add(xlSrcRange, tableRange, , xlYes) ' Utworzenie dynamicznej tabeli ListObject w zaznaczonym obszarze uwzględniając nagłówki
-        lo.Name = "PW_DATA"                         ' Nadanie nowej tabeli nazwy PW_DATA do użycia przy kolejnym odpaleniu makra
-        lo.TableStyle = "TableStyleLight1"          ' Ustawienie jasnego stylu dla tabeli (najczystszy biały/szary wbudowany profil)
-        lo.ShowTableStyleRowStripes = False         ' Usunięcie poziomych pasków (zebry) dla idealnie białego i czystego wyglądu tabeli zgodnego z poleceniem
-    End If                                          ' Zakończenie bloku tworzenia tabeli końcowej
-    ' --------------------------------------------------------------
     
     On Error Resume Next
-    BuildView                                       ' Odswiez arkusz Widok wg wybranego widoku
+    RenderDashboard True                            ' Odswiez Dashboard (strona 1 wynikow)
     On Error GoTo 0
     AddLogEntry "INFO", "OPERATION COMPLETED", "-", "-", "-", "-", 0 ' Zapisanie w logach informacji o pomyślnym zakończeniu makra
     wsLog.Columns("A:G").AutoFit                    ' Automatyczne dopasowanie szerokości kolumn w arkuszu logów
@@ -588,10 +559,10 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine " $uDate = @($doc.DocumentUpdateDate, $doc.FileUpdateDate, $doc.UpdateDate, $doc.Updated, $doc.CreateDate) | Where-Object { $_ } | Select-Object -First 1" ' Zapis kodu PS: Identyczne zachowanie łapiące datę dla kompatybilności API wstecz
     psFile.WriteLine " $obj['Updated'] = if ($uDate -is [DateTime]) { $uDate.ToString('yyyy-MM-dd') } else { $uDate }" ' Zapis kodu PS: Ujednolicenie formatu do ROK-MC-DZIEŃ
     
-    psFile.WriteLine " $flat = @{}; foreach ($pp in $doc.psobject.Properties) { $flat[$pp.Name] = $pp.Value }; $ca = $doc.CustomAttributes; if ($ca) { if ($ca -is [System.Collections.IDictionary]) { foreach ($k in $ca.Keys) { if (-not $flat.ContainsKey([string]$k)) { $flat[[string]$k] = $ca[$k] } } } else { foreach ($pp in $ca.psobject.Properties) { if (-not $flat.ContainsKey($pp.Name)) { $flat[$pp.Name] = $pp.Value } } } }" ' Jednorazowe splaszczenie wlasciwosci dokumentu (szybkie wyszukiwanie atrybutow zamiast skanowania obiektow dla kazdego atrybutu)
+    psFile.WriteLine " $caLoaded = $false; $ca = $null"     ' atrybuty projektu pobierane leniwie, tylko gdy nie ma ich wsrod zwyklych wlasciwosci (nie kopiujemy wszystkich wlasciwosci dokumentu)
     psFile.WriteLine " foreach ($attr in $selectedAttrs) {" ' Zapis kodu PS: Przechodzenie przez każdą nazwę atrybutu wpisaną w Excelu
     psFile.WriteLine " if ($attr -match '^(Name|Description|FileName|Updater|Updated)$') { continue }" ' Zapis kodu PS: Zablokowanie nadpisywania stałych systemowych, jeśli ktoś wpisał bzdury
-    psFile.WriteLine " $val = $flat[$attr]"
+    psFile.WriteLine " $val = $null; $pr = $doc.PSObject.Properties[$attr]; if ($pr) { $val = $pr.Value } else { if (-not $caLoaded) { $ca = $doc.CustomAttributes; $caLoaded = $true }; if ($ca) { if ($ca -is [System.Collections.IDictionary]) { if ($ca.Contains($attr)) { $val = $ca[$attr] } } else { $p2 = $ca.PSObject.Properties[$attr]; if ($p2) { $val = $p2.Value } } } }"
     psFile.WriteLine " if ($val -is [DateTime]) { $val = $val.ToString('yyyy-MM-dd') }" ' Zapis kodu PS: Normalizacja, jeśli atrybut PW był typu Data
     psFile.WriteLine " elseif ($val -is [array]) { $val = ($val -join ', ') }" ' Zapis kodu PS: Złączenie atrybutów wielokrotnych (np. wiele tagów) przecinkami w jeden wiersz
     psFile.WriteLine " if ($val -is [string]) { $val = $val.Replace('|', '-').Replace(""`n"", ' ').Replace(""`r"", '').Trim() }" ' Zapis kodu PS: Zabezpieczenie CSV przed zepsuciem (znak potoku to separator, więc jest usuwany z tekstu użytkownika PW)
@@ -616,21 +587,12 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine ""                             ' Zapis kodu PS: Pusty wiersz
     
     psFile.WriteLine " Write-Host 'Generating Structure Log...' -ForegroundColor Cyan" ' Zapis kodu PS: Informacja w konsoli o rozpoczęciu generowania mapy folderów (Txt)
-    psFile.WriteLine " $logContent = @()"           ' Zapis kodu PS: Deklaracja nowej tablicy na wpisy logu TXT
-    psFile.WriteLine " $logContent += '======================================================================'" ' Zapis kodu PS: Dodanie nagłówka separatora logu
-    psFile.WriteLine " $logContent += 'PROJECTWISE STRUCTURE LOG'" ' Zapis kodu PS: Dodanie tytułu
-    psFile.WriteLine " $logContent += 'Generated: ' + (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')" ' Zapis kodu PS: Wpisanie sygnatury czasowej wygenerowania
-    psFile.WriteLine " $logContent += '======================================================================'" ' Zapis kodu PS: Dodanie stopki nagłówka
-    psFile.WriteLine " foreach ($ok in $okScopes) { $logContent += ('[SCOPE_OK] ' + $ok) }" ' Zapis kodu PS: Zapis listy poprawnie przeskanowanych folderów na początku logu
-    psFile.WriteLine " $grouped = $results | Group-Object 'PW Source Path' | Sort-Object Name" ' Zapis kodu PS: Pogrupowanie bazy w pamięci operacyjnej po identycznych ścieżkach do renderu graficznego
-    psFile.WriteLine " foreach ($group in $grouped) {" ' Zapis kodu PS: Iterowanie dla każdej grupy (folderu)
-    psFile.WriteLine " $logContent += ''"           ' Zapis kodu PS: Dodanie pustej linii jako bufor przed nową grupą
-    psFile.WriteLine " $logContent += ('[FOLDER] ' + $group.Name)" ' Zapis kodu PS: Wypisanie w logu tekstowym nazwy rodzica/folderu
-    psFile.WriteLine " foreach ($item in $group.Group) {" ' Zapis kodu PS: Przelatuj przez obiekty wewnątrz grupy
-    psFile.WriteLine " $logContent += (' |-- [FILE] ' + $item.'File Name')" ' Zapis kodu PS: Formatowanie typu drzewo rysujące gałąź do pliku
-    psFile.WriteLine " $logContent += ('     [LINK] ' + $item.'PW Link')" ' Zapis kodu PS: Umiejscowienie pod tym ukrytego unikalnego linku URN do systemu identyfikacji śmieci w Excelu
-    psFile.WriteLine " }"                           ' Zapis kodu PS: Koniec wariantu grupowego
-    psFile.WriteLine " }"                           ' Zapis kodu PS: Zakończenie przebudowy logu tekstowego
+    psFile.WriteLine " $logContent = New-Object System.Collections.ArrayList"
+    psFile.WriteLine " [void]$logContent.Add('======================================================================')" ' Zapis kodu PS: Dodanie nagłówka separatora logu
+    psFile.WriteLine " [void]$logContent.Add('PROJECTWISE STRUCTURE LOG')" ' Zapis kodu PS: Dodanie tytułu
+    psFile.WriteLine " [void]$logContent.Add('Generated: ' + (Get-Date).ToString('yyyy-MM-dd HH:mm:ss'))" ' Zapis kodu PS: Wpisanie sygnatury czasowej wygenerowania
+    psFile.WriteLine " [void]$logContent.Add('======================================================================')" ' Zapis kodu PS: Dodanie stopki nagłówka
+    psFile.WriteLine " foreach ($ok in $okScopes) { [void]$logContent.Add('[SCOPE_OK] ' + $ok) }" ' Zapis kodu PS: Zapis listy poprawnie przeskanowanych folderów na początku logu
     psFile.WriteLine " $logContent | Out-File -FilePath $LogFile -Encoding UTF8 -Force" ' Zapis kodu PS: Fizyczne wyeksportowanie logu do pliku i nadpisanie w tle starych logów
     psFile.WriteLine "}"                            ' Zapis kodu PS: Zakończenie całego bloku if (obsługa wyników)
     
@@ -654,478 +616,309 @@ End Sub                                             ' Zakończenie wywołania ś
 ' =======================================================================
 ' 5. DELTA ANALYSIS: ANALIZUJE CSV ORAZ PARSUJE PLIK TXT
 ' =======================================================================
-Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath As String, numScopes As Long, ByVal arrCleanScopes As Variant) ' Algorytm łączący bazę wyciągniętą i przetworzoną (CSV) z tym, co aktualnie znajduje się w pliku Excela, ignorując pliki które zostały skasowane poza Excelem w chmurze
-    Dim fso As Object                               ' Referencja FSO
-    Set fso = CreateObject("Scripting.FileSystemObject") ' Uruchomienie obsługi plików
+' =======================================================================
+' IMPORT + DELTA (na tablicach w pamieci, zapis zbiorczy w paczkach)
+' PW_Data = plaska tabela: jeden wiersz = jeden plik (klucz: PW Link). Kolumny systemowe Status i Change Info oznaczaja zmiany z ostatniej aktualizacji.
+' =======================================================================
+Private Function ReadUtf8Text(ByVal path As String) As String
+    Dim st As Object
+    Set st = CreateObject("ADODB.Stream")
+    st.Charset = "utf-8"
+    st.Open
+    st.LoadFromFile path
+    If Not st.EOS Then ReadUtf8Text = st.ReadText
+    st.Close
+End Function
+
+Private Function SplitCsvLine(ByVal s As String) As String()
+    Dim p() As String, i As Long, t As String
+    p = Split(s, "|")
+    For i = 0 To UBound(p)
+        t = p(i)
+        If Len(t) >= 2 Then
+            If Left(t, 1) = """" And Right(t, 1) = """" Then
+                t = Mid(t, 2, Len(t) - 2)
+                If InStr(t, """""") > 0 Then t = Replace(t, """""", """")
+            End If
+        End If
+        p(i) = t
+    Next i
+    SplitCsvLine = p
+End Function
+
+' Czy wartosc sie realnie zmienila (ta sama data lub liczba zapisana inaczej nie liczy sie jako zmiana)
+Private Function ValuesDiffer(ByVal a As String, ByVal b As String) As Boolean
+    If StrComp(a, b, vbTextCompare) = 0 Then Exit Function
+    ValuesDiffer = True
+    On Error Resume Next
+    If IsDate(a) And IsDate(b) Then
+        If Int(CDate(a)) = Int(CDate(b)) Then ValuesDiffer = False: Exit Function
+    End If
+    If IsNumeric(a) And IsNumeric(b) Then
+        If CDbl(Replace(a, ".", ",")) = CDbl(Replace(b, ".", ",")) Then ValuesDiffer = False
+    End If
+    On Error GoTo 0
+End Function
+
+Private Sub QueueLog(lst As Object, ByVal action As String, ByVal fName As String, ByVal attr As String, ByVal oldV As String, ByVal newV As String, ByVal user As String)
+    lst.Add Array(Now, action, fName, attr, oldV, newV, user)
+End Sub
+
+Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath As String, numScopes As Long, ByVal arrCleanScopes As Variant)
+    Dim fso As Object
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    If Not fso.FileExists(csvPath) Then
+        AddLogEntry "ERROR", "Missing results CSV file.", "-", "-", "-", "-", CLR_DELETED
+        Exit Sub
+    End If
+    On Error Resume Next
+    If ws1.FilterMode Then ws1.ShowAllData
+    ws1.Cells.ClearOutline
+    ws1.Rows.Hidden = False
+    On Error GoTo 0
     
-    If Not fso.FileExists(csvPath) Then             ' Upewnienie się, że PowerShell pomyślnie utworzył bazę wynikową
-        AddLogEntry "ERROR", "Missing results CSV file.", "-", "-", "-", "-", CLR_DELETED ' Jeśli nie, poinformowanie w logach na czerwono
-        Exit Sub                                    ' Wyrzucenie błędu w formie cichej (odłączenie procesu), co nie wyczyści reszty danych
-    End If                                          ' Zakończenie weryfikacji powiązania plików bazy
+    ' --- foldery faktycznie przeskanowane (tylko pod nimi wolno oznaczac pliki jako usuniete) ---
+    Dim dictOk As Object, tx As String, tl() As String, i As Long, ln As String
+    Set dictOk = CreateObject("Scripting.Dictionary"): dictOk.CompareMode = 1
+    If fso.FileExists(txtLogPath) Then
+        tx = Replace(Replace(ReadUtf8Text(txtLogPath), vbCrLf, vbLf), vbCr, vbLf)
+        tl = Split(tx, vbLf)
+        For i = 0 To UBound(tl)
+            ln = Trim(tl(i))
+            If InStr(1, ln, "[SCOPE_OK]", vbTextCompare) = 1 Then dictOk(UCase(Trim(Mid(ln, Len("[SCOPE_OK]") + 1)))) = True
+        Next i
+    End If
     
-    On Error Resume Next                            ' Zabezpieczenie przed usuwaniem filtrów i wierszy
-    If ws1.FilterMode Then ws1.ShowAllData          ' Wyłączenie filtra w Excelu, aby macro mogło modyfikować również wyfiltrowane obszary (rozwiązywanie bugów wydajności)
-    ws1.Cells.ClearOutline                          ' Zdjęcie jakiegokolwiek wcześniej zapisanego poziomu grupowania i zwijania (uszkodzenia wizualne)
-    ws1.rows.Hidden = False                         ' Odkrycie całego arkusza, aby makro nie pomyliło numerów R
-    On Error GoTo 0                                 ' Utrzymanie normalnego profilowania awarii
+    ' --- CSV -> tablica ---
+    Dim csv As String, lines() As String
+    csv = ReadUtf8Text(csvPath)
+    If Len(csv) = 0 Then Exit Sub
+    lines = Split(Replace(Replace(csv, vbCrLf, vbLf), vbCr, vbLf), vbLf)
+    Dim csvH() As String, nCsv As Long
+    csvH = SplitCsvLine(lines(0))
+    nCsv = UBound(lines)
     
-    RemoveEmptyRows ws1                             ' Odpalenie procedury czyszczenia wierszy (która ma zapytanie MsgBox z reguł usera)
+    ' --- istniejaca baza -> tablica ---
+    Dim oldC As Long, oldR As Long, oldArr As Variant, hv As Variant
+    oldC = ws1.Cells(DATA_HEADER_ROW, ws1.Columns.Count).End(xlToLeft).Column
+    If Trim(CStr(ws1.Cells(DATA_HEADER_ROW, oldC).Value)) = "" Then oldC = 0
+    oldR = ws1.Cells(ws1.Rows.Count, 1).End(xlUp).Row
+    Dim m As Long
+    If oldC > 0 And oldR > DATA_HEADER_ROW Then
+        oldArr = ReadBlock(ws1, DATA_HEADER_ROW + 1, 1, oldR, oldC)
+        m = UBound(oldArr, 1)
+    End If
     
-    Dim dictOkScopes As Object                      ' Foldery faktycznie przeskanowane przez PowerShell (bez nich nie wolno oznaczać plików jako usunięte)
-    Set dictOkScopes = CreateObject("Scripting.Dictionary")
-    dictOkScopes.CompareMode = 1
-    Dim dictTxtLinks As Object                      ' Obiekt szybkiego wyszukiwania słownikowego (hashowania)
-    Set dictTxtLinks = CreateObject("Scripting.Dictionary") ' Inicjalizacja obiektu Dictionary
-    dictTxtLinks.CompareMode = 1                    ' Ustawienie porównywania w trybie Text (case-insensitive, nie rozróżniając wielkości liter)
+    ' --- uklad kolumn: stare naglowki bez zmian, nowe dopisywane na koncu ---
+    Dim hdr() As String, nc As Long, hIdx As Object
+    Set hIdx = CreateObject("Scripting.Dictionary"): hIdx.CompareMode = 1
+    ReDim hdr(1 To oldC + UBound(csvH) + 5)
+    If oldC > 0 Then
+        hv = ReadBlock(ws1, DATA_HEADER_ROW, 1, DATA_HEADER_ROW, oldC)
+        For i = 1 To oldC
+            hdr(i) = Trim(CStr(hv(1, i)))
+            If hdr(i) <> "" Then hIdx(hdr(i)) = i
+        Next i
+        nc = oldC
+    End If
+    Dim csvMap() As Long
+    ReDim csvMap(0 To UBound(csvH))
+    Dim c As Long
+    For c = 0 To UBound(csvH)
+        If csvH(c) = "Folder Link" Then
+            csvMap(c) = 0
+        Else
+            If Not hIdx.exists(csvH(c)) Then nc = nc + 1: hdr(nc) = csvH(c): hIdx(csvH(c)) = nc
+            csvMap(c) = hIdx(csvH(c))
+        End If
+    Next c
+    If Not hIdx.exists(COL_STATUS) Then nc = nc + 1: hdr(nc) = COL_STATUS: hIdx(COL_STATUS) = nc
+    If Not hIdx.exists(COL_CHANGES) Then nc = nc + 1: hdr(nc) = COL_CHANGES: hIdx(COL_CHANGES) = nc
+    Dim iName As Long, iPath As Long, iLink As Long, iUpd As Long, iSt As Long, iCh As Long
+    iName = hIdx("File Name"): iPath = hIdx("PW Source Path"): iLink = hIdx("PW Link"): iUpd = hIdx("Updater")
+    iSt = hIdx(COL_STATUS): iCh = hIdx(COL_CHANGES)
     
-    If fso.FileExists(txtLogPath) Then              ' Upewnienie się, że plik struktury logu .txt został utworzony
-        Dim streamTxt As Object                     ' Deklaracja interfejsu połączenia danych
-        Set streamTxt = CreateObject("ADODB.Stream") ' Wykorzystanie ADODB z powodu błędów VBA z odczytem innych kodowań z UTF8
-        streamTxt.Charset = "utf-8"                 ' Ustawienie poprawnego trybu wymiany znakowej
-        streamTxt.Open                              ' Odblokowanie i otwarcie kanału z plikiem TXT
-        streamTxt.LoadFromFile txtLogPath           ' Przerzucenie logu tekstowego w całości z pliku z dysku prosto do obwodu
-        
-        If Not streamTxt.EOS Then                   ' Sprawdzenie czy strumień (EOF - End Of Stream/File) jest pełny (plik nie był pusty)
-            Dim txtData As String                   ' Przydzielenie lokalizacji w pamięci tekstowej na zbiór
-            txtData = streamTxt.ReadText            ' Przypisanie masywnych paczek tekstu
-            txtData = Replace(txtData, vbCrLf, vbLf) ' Oczyszczanie niechcianych znaków końca linii Mac / Win / Unix, zamiana wszystkiego na Linuxa do pętli Split
-            txtData = Replace(txtData, vbCr, vbLf)  ' Zamiana dodatkowych znaków karetki (Carriage Return) jeśli zostały
-            
-            Dim txtRows() As String                 ' Utworzenie tablicy z rozdzielonego strumienia (na konkretne linie pliku)
-            txtRows = Split(txtData, vbLf)          ' Rozłamanie tekstu poprzez znak końca Lf
-            Dim tr As Long                          ' Deklaracja iteratora dla logów drzewa struktury
-            
-            For tr = 0 To UBound(txtRows)           ' Początek przelotu po całym pliku Txt
-                Dim tLine As String                 ' Bufor do obsługi bieżącego wiersza
-                tLine = Trim(txtRows(tr))           ' Ściągnięcie wiersza bez spacji bocznych z Array'a do RAM'u
-                If InStr(1, tLine, "[SCOPE_OK]", vbTextCompare) = 1 Then
-                    dictOkScopes(UCase(Trim(Mid(tLine, Len("[SCOPE_OK]") + 1)))) = True
-                ElseIf InStr(1, tLine, "[LINK]", vbTextCompare) = 1 Then ' Wykrycie tagu URN dla identyfikacji śmieci na podstawie poprzedniego generowania w PowerShell (gdzie dodawano prefiks linku w konsoli pod $item)
-                    Dim extLink As String           ' Deklaracja zmiennej która utrzyma unikalny URL do systemu Bentley
-                    extLink = Trim(Replace(tLine, "[LINK]", "", 1, 1, vbTextCompare)) ' Pocięcie wiersza poprzez zdjęcie tagu by zostało samo połączenie w stringu
-                    If extLink <> "" Then dictTxtLinks(extLink) = True ' Zbudowanie szybkiej ścieżki i powiązania (Hash), weryfikacja ułatwia sprawdzenie (istnieje True/False w < 1 ms!)
-                End If                              ' Zamknięcie analizy i parowania Txt do Słownika
-            Next tr                                 ' Skok po tablicach i następny wiersz logów
-        End If                                      ' Zakończenie bufora pustego
-        streamTxt.Close                             ' Bezpieczne zniszczenie rury plikowej
-    End If                                          ' Kończenie procedur bezpieczeństwa sprawdzania struktury bazy .txt
+    ' --- wynik: stare wiersze (bez smieci i dawnych wierszy folderow) + nowe ---
+    Dim res() As Variant, cnt As Long, cap As Long, r As Long
+    cap = m + nCsv + 1
+    ReDim res(1 To cap, 1 To nc)
+    Dim dIdx As Object, key As String, pth As String, nm As String
+    Set dIdx = CreateObject("Scripting.Dictionary"): dIdx.CompareMode = 1
+    For r = 1 To m
+        nm = Trim(CStr(oldArr(r, iName))): pth = Trim(CStr(oldArr(r, iPath)))
+        If nm <> "" And pth <> "" Then               ' pusty path = stary wiersz folderu - pomijamy
+            cnt = cnt + 1
+            For c = 1 To oldC: res(cnt, c) = oldArr(r, c): Next c
+            If CStr(res(cnt, iSt)) <> "DELETED" Then res(cnt, iSt) = "": res(cnt, iCh) = ""
+            key = Trim(CStr(res(cnt, iLink)))
+            If key = "" Then key = pth & "|" & nm
+            dIdx(key) = cnt
+        End If
+    Next r
+    Dim nOld As Long: nOld = cnt
+    Dim seen() As Boolean
+    ReDim seen(1 To cap)
     
-    Dim stream As Object                            ' Analogiczna procedura jak przy Txt dla obsługi pliku z wynikami CSV. Deklaracja interfejsu (ponieważ CSV również nie ma 100% wsparcia dla "open" z znakami PL - polskimi)
-    Set stream = CreateObject("ADODB.Stream")       ' Wwołanie procedury COM streamu w Windows (ADO Database format)
-    stream.Charset = "utf-8"                        ' Ponownie wstawienie dekodera znakowego dla pliku (tym razem bazowego CSV z parametrami dokumentów i wersjami dat)
-    stream.Open                                     ' Otwarcie linii strumania
-    stream.LoadFromFile csvPath                     ' Ładowanie wszystkich wyników (może być setki Megabajtów pliku!)
+    Dim logs As Object, nAdd As Long, nChg As Long, nChgCells As Long, nDel As Long, nRestored As Long
+    Set logs = CreateObject("System.Collections.ArrayList")
+    Dim stamp As String: stamp = Format(Now, "yyyy-mm-dd hh:nn")
+    Dim currentUpdater As String: currentUpdater = Environ("USERNAME")
     
-    If stream.EOS Then                              ' Mechanizm zapobiegania awarii - weryfikacja, że PowerShell faktycznie dorzucił dane po "Export-CSV" w PS
-        stream.Close                                ' Zamknięcie pliku
-        Exit Sub                                    ' Powrót ze struktury - zakończenie ciche, plik bazy był nieprawidłowy, ale nie jest błędem do "zawieszenia Excela"
-    End If                                          ' Zakończenie zapobiegania awarii
+    Dim f() As String, ro As Long, nv As String, ov As String, t As Long, chg As String, chgTxt As String
+    Application.StatusBar = "Merging " & nCsv & " records..."
+    For r = 1 To nCsv
+        If Len(lines(r)) > 0 Then
+            f = SplitCsvLine(lines(r))
+            key = ""
+            For c = 0 To UBound(csvH)
+                If csvH(c) = "PW Link" And c <= UBound(f) Then key = Trim(f(c))
+            Next c
+            If key = "" Then key = "?" & r
+            ro = 0
+            If dIdx.exists(key) Then ro = dIdx(key)
+            If ro > 0 Then
+                seen(ro) = True
+                chgTxt = ""
+                If CStr(res(ro, iSt)) = "DELETED" Then res(ro, iSt) = "": res(ro, iCh) = "Restored in PW " & stamp: nRestored = nRestored + 1
+                For c = 0 To UBound(csvH)
+                    t = csvMap(c)
+                    If t > 0 And c <= UBound(f) Then
+                        nv = Trim(f(c)): ov = Trim(CStr(res(ro, t)))
+                        If t = iLink Or t = iPath Or t = iUpd Then
+                            res(ro, t) = nv                 ' pola techniczne - bez oznaczania zmian
+                        ElseIf ValuesDiffer(ov, nv) Then
+                            res(ro, t) = nv
+                            If ov <> "" Then
+                                nChgCells = nChgCells + 1
+                                chgTxt = chgTxt & csvH(c) & ": " & ov & " -> " & nv & " | "
+                                If nChgCells <= 3000 Then QueueLog logs, "CHANGED", CStr(res(ro, iName)), csvH(c), ov, nv, currentUpdater
+                            End If
+                        End If
+                    End If
+                Next c
+                If chgTxt <> "" Then
+                    nChg = nChg + 1
+                    res(ro, iSt) = "CHANGED"
+                    res(ro, iCh) = Left(stamp & "  " & chgTxt, 1000)
+                End If
+            Else
+                cnt = cnt + 1: nAdd = nAdd + 1
+                For c = 0 To UBound(csvH)
+                    t = csvMap(c)
+                    If t > 0 And c <= UBound(f) Then res(cnt, t) = Trim(f(c))
+                Next c
+                res(cnt, iSt) = "NEW": res(cnt, iCh) = "Added " & stamp
+                dIdx(key) = cnt: seen(cnt) = True
+                If nOld > 0 And nAdd <= 1000 Then QueueLog logs, "ADDED", CStr(res(cnt, iName)), "-", "-", "-", currentUpdater
+            End If
+        End If
+    Next r
+    If nAdd > 0 And (nOld = 0 Or nAdd > 1000) Then QueueLog logs, "ADDED", nAdd & " files" & IIf(nOld = 0, " (initial load)", " (bulk)"), "-", "-", "-", currentUpdater
+    If nChgCells > 3000 Then QueueLog logs, "CHANGED", "... " & (nChgCells - 3000) & " more changed values not listed", "-", "-", "-", currentUpdater
     
-    Dim csvData As String                           ' Rezerwowanie pojemnego RAMu String pod dane
-    csvData = stream.ReadText                       ' Odczyt i przetransferowanie 100% bazy w RAM stringu Excela
-    stream.Close                                    ' Natychmiastowe zniszczenie połączenia streamu CSV aby inny proces, lub wirus plikowy go nie chwycił w zawieszeniu (System OS Lock)
-    csvData = Replace(csvData, vbCrLf, vbLf)        ' Tak samo standardyzacja znaków do tablicy. Część z tego musi być zmieniana na w locie, aby kodowanie Unix (Powershell wewnętrznie) poprawnie dzieliło bazy po wierszach
-    csvData = Replace(csvData, vbCr, vbLf)          ' Korekcja łamaczy linii w starej architekturze Macintosh
-    
-    Dim rows() As String                            ' Array zawierający całe strukturalne rzędy wierszy do sprawdzenia i przetworzenia na Excelu
-    rows = Split(csvData, vbLf)                     ' Ostateczne posiekanie tekstu plikowego CSV na wiersz za wierszem Array dla VBA
-    If UBound(rows) < 0 Then Exit Sub               ' Mechanizm chroniący przed "pętlą w nieskończoność" gdy plik jest zniszczony, puste bloki nie posiadają zadeklarowanej góry
-    
-    Dim csvHeaders() As String                      ' Inicjalizacja bloku na listę rzędu numer zero z pliku (Nagłówki Pliku Excela/CSV z właściwości atrybutów)
-    csvHeaders = Split(Replace(rows(0), """", ""), "|") ' Zdjęcie obustronnych cudzysłowów które dodał automatycznie po chamsku PowerShell przy formatowaniu CSV, podzielenie znaku potoku
-    
-    Dim colDict As Object                           ' Deklaracja Hash Dictionary dla łatwej identyfikacji nagłówków Atrybutów do ich położeń w arkuszach Excel (Kolumnie 1,2,3... etc).
-    Set colDict = CreateObject("Scripting.Dictionary") ' Uruchomienie Hasha atrybutów
-    colDict.CompareMode = 1                         ' Ustawiony format nierozróżniający (A / a nie powoduje zawieszenia i tworzenia dwóch wpisów do nagłówków kolumn).
-    
-    Dim lastCol As Long, c As Long                  ' Deklaracja "ostatniej skanowanej kolumny" i iteratora C
-    lastCol = ws1.Cells(11, ws1.Columns.count).End(xlToLeft).Column ' Skan w Excelu po 11 linii od prawej części arkusza. Znajduje nagłówki by oszacować pozycję dopisywania (Append).
-    If lastCol < 3 Then lastCol = 3                 ' Twardy mechanizm chroniący szkielet arkusza 1. Nawet jeśli makro jest puste to trzymaj szerokość na poziomie 3 bazowych kolumn (File Name, Path, Link).
-    
-    For c = 1 To lastCol                            ' Pętla ładująca wszystkie już widoczne w excelu nazwy kolumn z Arkusza 1, nagłówek "11" do Hash table (słownika).
-        If ws1.Cells(11, c).Value <> "" Then colDict(ws1.Cells(11, c).Value) = c ' Zmapuj to, gdzie jest jaki element bazy, by wiedzieć gdzie go zaktualizować (Dla atrybutu "Opis" powiedz że znajduje w kolumnie "C")
-    Next c                                          ' Pętla następnego wiersza
-    
-    Dim csvColMapping() As Long                     ' Array zadeklarowany, by wskazywać które elementy kolumny wejściowej pliku CSV celują w nagłówki Arkusza1 z Excela (mapowanie).
-    ReDim csvColMapping(UBound(csvHeaders))         ' Dopasowanie tablic do struktury nagłówkowej
-    Dim urnIndex As Long, pathIndex As Long, updaterIndex As Long, folderLinkIndex As Long ' Przetrzymanie specjalnych indeksów atrybutów dla przyspieszenia skryptu (by nie musiał ich wyszukiwać w pętli 50 000 razy)
-    updaterIndex = -1: folderLinkIndex = -1         ' Stan początkowy niezdefiniowany (na wypadek ich braku) - oznacza brak wsparcia i wstrzymuje skrypt przed awarią "Index -1 is OUT OF BOUNDS"
-    
-    For c = 0 To UBound(csvHeaders)                 ' Przeleć całą kolumnę "zero" CSV (czyli nazwy cech/atrybutów)
-        Dim hName As String                         ' Cache nazwy bieżącej główki (by ułatwić użycie w procedurach wyszukiwarki słownikowej)
-        hName = csvHeaders(c)                       ' Odczytaj zawartość z array wiersza kolumny
-        If hName = "PW Link" Then urnIndex = c      ' Wyszukaj flagowy techniczny link na pozycję URN
-        If hName = "PW Source Path" Then pathIndex = c ' Wyszukaj systemowy atrybut ścieżki i zapamiętaj która to komórka kolumny!
-        If hName = "Updater" Then updaterIndex = c  ' Podłącz właściwość autora do bazy ścieżek
-        If hName = "Folder Link" Then folderLinkIndex = c ' Podłącz lokalizator URN na obiekt katalogu z Bentley!
-        
-        If hName <> "Folder Link" Then              ' Ważne, pomiń wykreowanie widocznej kolumny (folder link ma być wpisany jako sam hyperlink bezpośrednio na tekst pod spodem!) Omiń jego mapowanie po stronie użytkowej widoków arkusza Excel
-            If colDict.exists(hName) Then           ' Jeśli ta cecha z CSV już znajduje sie w Hash zdefiniowanym u góry (krok Excela)...
-                csvColMapping(c) = colDict(hName)   ' Ustal, że ta kolumna na 100% trafia na pozycję Excel (jest odwzorowana i znana bazie, bezpieczny append nadpisania z aktualizacją wersji)
-            Else                                    ' A co jeśli nazwa Atrybutu wpisana przez wklejony PowerShell nie istnieje na szczycie tabel Arkusza 1?
-                lastCol = lastCol + 1               ' Powieksz ostatnie użycie struktury w Excelu (nowa docelowa Kolumna X)
-                ws1.Cells(11, lastCol).Value = hName ' Automatycznie dogeneruj w głowie/nagłówku arkusza nową etykietę i nazwij tym co dostarczył PowerShell w pliku!
-                StyleHeader ws1.Cells(11, lastCol)          ' Jednolity styl nagłówka ' Automatycznie pogrub i wystylizuj tak, aby zrównało się z resztą formatu
-                colDict(hName) = lastCol            ' Dołącz świeżo utworzone powiązanie do struktury szybkiej by skrypt go nie wygenerował na następnej pętli!
-                csvColMapping(c) = lastCol          ' Wróć na standardowe tory powiązania wektorowego do nadpisywań i wpisów
-            End If                                  ' Koniec mechanizmu samouzdrawiającego mapowania kolumn
-        Else                                        ' Drugi warunek Jeśli w bazie wykazanej to jest folder Link
-            csvColMapping(c) = 0                    ' Ignoruj kompletnie w widocznym Excel (nie dodawaj wpisów numerycznych 1,2,3). Służy tylko jako link "open" z Hyperlink obiektu w VBA!
-        End If                                      ' Zakończenie sprawdzania nagłówków!
-    Next c                                          ' Wymuś sprawdzenie wszystkich parametrów właściwości z nagłówka CSV dla kolumny ZERO.
-    
-    Dim urnCol As Long, pathCol As Long             ' Ponowne wydzielenie zmiennych na pamiętanie Excelowych ułożeń atrybutów "PW Link" i "PW Ścieżki" bo w mapowaniu są dla nas świętością lokalizującą w bazie
-    urnCol = colDict("PW Link")                     ' Przypisanie miejsca przebywania "PW LINK" w kolumnach 1 Arkusza na konkretną stałą
-    pathCol = colDict("PW Source Path")             ' Zapis i zapamiętanie ścieżki w kolumnach
-    
-    Dim changesCount As Long                        ' Numeracja użyta dla wysłania w eter podsumowań powiadamiających do arkusza "Logs" "Znaleziono XYX zmian" lub "0 - Baza była uaktualniona w pełni w tym pliku"
-    changesCount = 0                                ' Reset
-    
-    Dim dictExcelURNs As Object, dictExcelFolders As Object ' Utworzenie dwóch gigantycznych Hash Object Map, do skanowania arkusza z prędkością mili-sekund zamiast godzinnego pętlowania
-    Set dictExcelURNs = CreateObject("Scripting.Dictionary") ' Start Słownika pamięciowego numer 1 pod parametry URN obiektowych identyfikacji systemów wewnątrz bazy (By znaleźć duplikat w 0ms! URN to unikalny identyfikator Bentley z bazy SQL na każdy wrzucony pikokształt pliku z datami w nazwie)
-    dictExcelURNs.CompareMode = 1                   ' Wyłączenie funkcji weryfikacji dużych liter w hashowaniu
-    Set dictExcelFolders = CreateObject("Scripting.Dictionary") ' Start Słownika drugiego na parametry Grupowania/Nagłówków Zielonych dla widoków folderów
-    dictExcelFolders.CompareMode = 1                ' Identycznie wyłączenie rozróżniania Case na literach by nie utworzyło 2 osobnych ścieżek "Docs/Polska" vs "docs/polska" bo system operacyjny tego nie zrobi.
-    
-    Dim maxR As Long, rEx As Long                   ' Deklaracja szukania w Excelu ostatnich maksymalnych wierszy, oraz interatory dla Rzędów (Excel).
-    Dim maxRCell As Range                           ' Interfejs Obiektowy
-    Set maxRCell = ws1.Cells.Find(What:="*", LookIn:=xlFormulas, SearchOrder:=xlByRows, SearchDirection:=xlPrevious) ' Algorytm szukający absolutnie na krańcach "Sheet_1"
-    If Not maxRCell Is Nothing Then maxR = maxRCell.Row Else maxR = 11 ' Gdy skraj wierszowy został zidentyfikowany to przypisz go, albo start z wiersza 11 gdy kartka biała i zepsuta.
-    If maxR < 11 Then maxR = 11                     ' Zabezpieczenie na poziomie pętlowym w przypadku braku odczytania góry
-    
-    For rEx = 12 To maxR                            ' Główna pętla skanująca to co posiada już wewnątrz tabel stary EXCEL ("Baza"). Zaczynająca od wiersza 12
-        Dim ePath As String, eName As String, eURN As String ' Wydzielenie odczytów dla Excela ze starą zawartością tabel - ePath / eName.
-        eName = Trim(ws1.Cells(rEx, 1).Value)       ' Pobranie komórki do pamięci bez odstępów
-        ePath = Trim(ws1.Cells(rEx, pathCol).Value) ' Pobranie i sformatowanie dla ścieżek skopiowanych u dołu
-        eURN = Trim(CStr(ws1.Cells(rEx, urnCol).Value)) ' Ostatnia faza to unikalny obiekt identyfikacji jako Text na pewniaka CStr konwersja!
-        
-        If ePath = "" And eName <> "" Then          ' Gdy mamy wpis nazwy ale brakuje ścieżki w kolumnie systemowej (PW SOURCE PATH)... Mamy doczynienia z tzw Nagłówkiem Zielonym "FOLDEREM"! Excel jest formatowany w ten sposób by dla oka pokazywał Grupy ścieżek
-            dictExcelFolders(UCase(eName)) = rEx    ' Zapamiętaj dla szybkiego indeksowania do mapy (Hash) położenie tego foldera, jako wielkie litery "nazwy i położenia ścieżki (ponieważ on ma ją wypisaną z lewej strony pliku na zielono)". Zapisz na jakim wierszu to występuje do Hash Tab!
-        ElseIf ePath <> "" And eName <> "" Then     ' Drugi stan zapytania if. Zwykły prawidłowo wypełniony szkielet - jest Ścieżka pobrana oraz ma nazwę, to po prostu wstawiony do raportu stary PLIK z ProjectWise z CSV wyciągu wstecznego bazy
-            If eURN <> "" Then dictExcelURNs(eURN) = rEx ' Tak jak folder. Zapisz identyfikację absolutną pliku "URN", aby za pomocą zera czasu znaleźć duplikat Excel vs CSV wewnątrz. Hash table trzyma tylko 1 pozycję
-        End If                                      ' Zakończ obsługę logiki rozpoznającej co w trawie Excelu (arkuszu) starej i wyłączonej (niedostępnej) piszczy!
-    Next rEx                                        ' Przerysuj iterację Excela od zera dla kolejnego starego wiersza
-    
-    Dim r As Long                                   ' Start nowej operacji. Odczytywanie wierszy dla samej wielkiej tabeli CSV pobranej z Powłoki systemowej Powershell na żywca! Właściwy tryb różnic "Delta Process"
-    For r = 1 To UBound(rows)                       ' Skok przez każdy pobrany w pliku tekstowym CSV element (Z pominięciem R = 0 na starcie pętli co oznacza że pominiemy kolumnę etykiet - pierwszą nagłówków z pliku)
-        If Trim(rows(r)) <> "" Then                 ' Jakakolwiek operacja tylko gdy linia pętli pliku nie stwarza pustego wiersza.
-            ProcessSingleCSVRow ws1, rows(r), csvHeaders, csvColMapping, colDict, urnCol, pathCol, urnIndex, pathIndex, updaterIndex, folderLinkIndex, dictExcelURNs, dictExcelFolders, changesCount ' Zrzut 15 argumentów do dużej funkcji logicznej. Będzie rozbierać dany ciąg wyrazowy z jednego wiersza i przetwarzać
-        End If                                      ' Zakończenie wariantu zabezpieczającego (If) przed pustką (Error w bazie lub błąd przy wycięciu spacji w plikach CSV przy EOF - ostatnim rzędzie z enterem nadanym przez PowerShell bez sensu)
-    Next r                                          ' Koniec pętli dla CSV dla pojedynczej linii (rzędu wyników pobranego prosto z bazy internetowej cloud w sekundach). Uruchom kod nad linijką nowo pobraną dla CSV nr "R".
+    ' --- usuniete: nie widziane w CSV, ale tylko pod folderami faktycznie przeskanowanymi ---
+    Dim scopeCache As Object, underScope As Boolean, s As Long, cs As String, sp As String
+    Set scopeCache = CreateObject("Scripting.Dictionary"): scopeCache.CompareMode = 1
+    For r = 1 To nOld
+        If Not seen(r) Then
+            pth = UCase(Replace(Trim(CStr(res(r, iPath))), "/", "\"))
+            If scopeCache.exists(pth) Then
+                underScope = scopeCache(pth)
+            Else
+                underScope = False
+                For s = 1 To numScopes
+                    cs = UCase(Replace(arrCleanScopes(s), "/", "\"))
+                    If dictOk.exists(cs) And InStr(1, pth, cs, vbTextCompare) > 0 Then underScope = True: Exit For
+                Next s
+                scopeCache(pth) = underScope
+            End If
+            If underScope And CStr(res(r, iSt)) <> "DELETED" Then
+                res(r, iSt) = "DELETED": res(r, iCh) = "Deleted from PW " & stamp
+                nDel = nDel + 1
+                If nDel <= 2000 Then QueueLog logs, "DELETED", CStr(res(r, iName)), "-", "Existed", "Deleted from PW", "-"
+            End If
+        End If
+    Next r
+    If nDel > 2000 Then QueueLog logs, "DELETED", "... " & (nDel - 2000) & " more deleted files not listed", "-", "-", "-", "-"
     
     Dim sc As Long
-    For sc = 1 To numScopes                         ' Ostrzeżenie o folderach, których nie udało się przeskanować (login/ścieżka) - ich pliki NIE zostaną oznaczone jako usunięte
-        If Not dictOkScopes.exists(arrCleanScopes(sc)) Then AddLogEntry "WARNING", "Scope not scanned (skipped deletion check): " & arrCleanScopes(sc), "-", "-", "-", "-", RGB(255, 192, 0)
+    For sc = 1 To numScopes
+        If Not dictOk.exists(arrCleanScopes(sc)) Then AddLogEntry "WARNING", "Scope not scanned (skipped deletion check): " & arrCleanScopes(sc), "-", "-", "-", "-"
     Next sc
-    MarkDeletedItems ws1, urnCol, pathCol, lastCol, numScopes, arrCleanScopes, dictTxtLinks, dictOkScopes, changesCount ' Mechanizm sprawdzający Excela od tyłu! Zauważmy że wszystko "DODANO LUB EDYTOWANO (DELTA PROCESS) a pliki co już w bazie Excela, ale zniknęły w CSV (bo z serwera skasowane) nadal w excelu sobie siedzą nieruszane na błękitnym/białym podkładzie! Zaznacz te wiersze jako martwe "DELETED - kolor wściekła czerwień i skreślenie". Mechanizm potrzebuje Map TXT i CSV dla porównań
     
-    If changesCount = 0 Then                        ' Całe makro sprawdziło tysiące pikseli dla bazy i CSV, zmian na plikach jest literalnie "zero". Nie musisz logować nic prócz faktu braku jakiejkolwiek zmiany (Dysk twardy nie piszczy że zapisał za dużo zmian a excel oszczędza na limicie 1.000.000 wierszy w pliku XLSX dla raportów i wyciągów ProjectWise)
-        AddLogEntry "INFO", "No changes compared to the previous download.", "-", "-", "-", "-", 0 ' Logowanie, wpis bez koloru z samą informacją ("Zero" w kolorach)
-    End If                                          ' Końcowa akcja pętli. Jeśli pliki były modyfikowane, wygenerowały log w pętlach i ten wariant ominął kod o 0 wpisach!
+    ' --- zapis bazy: naglowki + dane w paczkach ---
+    Application.StatusBar = "Writing " & cnt & " rows to " & SH_DATA & "..."
+    Dim clearTo As Long
+    clearTo = oldR: If DATA_HEADER_ROW + cnt > clearTo Then clearTo = DATA_HEADER_ROW + cnt
+    ws1.Range(ws1.Rows(DATA_HEADER_ROW + 1), ws1.Rows(clearTo + 5)).Clear
+    Dim hrow() As Variant
+    ReDim hrow(1 To 1, 1 To nc)
+    For c = 1 To nc: hrow(1, c) = hdr(c): Next c
+    ws1.Range(ws1.Cells(DATA_HEADER_ROW, 1), ws1.Cells(DATA_HEADER_ROW, nc)).Value = hrow
+    StyleHeader ws1.Range(ws1.Cells(DATA_HEADER_ROW, 1), ws1.Cells(DATA_HEADER_ROW, nc))
+    If cnt > 0 Then
+        ws1.Range(ws1.Cells(DATA_HEADER_ROW + 1, 1), ws1.Cells(DATA_HEADER_ROW + cnt, nc)).NumberFormat = "@"
+        Dim r0 As Long, r1 As Long, blk() As Variant, j As Long
+        Const CHUNK As Long = 4000
+        For r0 = 1 To cnt Step CHUNK
+            r1 = r0 + CHUNK - 1: If r1 > cnt Then r1 = cnt
+            ReDim blk(1 To r1 - r0 + 1, 1 To nc)
+            For r = r0 To r1
+                For j = 1 To nc: blk(r - r0 + 1, j) = res(r, j): Next j
+            Next r
+            ws1.Range(ws1.Cells(DATA_HEADER_ROW + r0, 1), ws1.Cells(DATA_HEADER_ROW + r1, nc)).Value = blk
+            Application.StatusBar = "Writing " & SH_DATA & ": " & r1 & " / " & cnt
+        Next r0
+    End If
+    On Error Resume Next
+    ws1.AutoFilterMode = False
+    If cnt > 0 Then ws1.Range(ws1.Cells(DATA_HEADER_ROW, 1), ws1.Cells(DATA_HEADER_ROW + cnt, nc)).AutoFilter
+    If oldC = 0 Then
+        ws1.Columns(iName).ColumnWidth = 48: ws1.Columns(iPath).ColumnWidth = 55: ws1.Columns(iLink).ColumnWidth = 46
+        ws1.Columns(iUpd).ColumnWidth = 18
+    End If
+    ws1.Cells(DATA_HEADER_ROW + 1, 1).Parent.Range(ws1.Cells(DATA_HEADER_ROW + 1, iSt), ws1.Cells(DATA_HEADER_ROW + cnt + 1, iSt)).FormatConditions.Delete
+    Dim fcR As Range
+    Set fcR = ws1.Range(ws1.Cells(DATA_HEADER_ROW + 1, iSt), ws1.Cells(DATA_HEADER_ROW + cnt + 1, iSt))
+    fcR.FormatConditions.Add(xlCellValue, xlEqual, "=""NEW""").Interior.Color = CLR_NEW
+    fcR.FormatConditions.Add(xlCellValue, xlEqual, "=""CHANGED""").Interior.Color = CLR_CHANGED
+    fcR.FormatConditions.Add(xlCellValue, xlEqual, "=""DELETED""").Interior.Color = CLR_DELETED
+    On Error GoTo 0
+    SetDataCache res, hdr, cnt, nc
     
-    If nextLogRow - 1 > logStartRow Then            ' Konwersja formatująca LOG Txt i LOG Excel (aby się uczytelniło wizualnie pod "plusika" i nie zasypywało setką wierszy do scroolowania, log jest pod grupami ukryty pod plusem w Excel Sheet "LOG")
-        wsLog.rows((logStartRow + 1) & ":" & (nextLogRow - 1)).Group ' Automatycznie zaznacz wygenerowane zdarzenia z bieżącej daty pracy programu (START) do samego jego zamknięcia przez polecenie LOG.
-    End If                                          ' Zakończenie stylizowania logowania Excel. Plik jest czysty po usunięciu starych danych po Delta, sformatowany i zapisany, a po zmianie dodano log
-End Sub                                             ' Pełne zamknięcie operacji przetwarzania "Delty" w sercu weryfikacji skryptu w tle
-
-Private Sub RemoveEmptyRows(ws1 As Worksheet)       ' Reguła poprawkowa usera z dnia [2026-03-19] o zapytaniach przed usunięciem wierszy Excela
-    Dim maxR As Long, r As Long                     ' Ograniczniki wierszowe
-    Dim maxRCell As Range                           ' Definicja zasięgów
-    Set maxRCell = ws1.Cells.Find(What:="*", LookIn:=xlFormulas, SearchOrder:=xlByRows, SearchDirection:=xlPrevious) ' Znajdź kres komórek dla Excela pod rzędy 11 i koniec
-    If Not maxRCell Is Nothing Then maxR = maxRCell.Row Else maxR = 11 ' Ochrona gdy jest wyczyszczone i na gładko zepsute ("Nothing")
-    If maxR < 12 Then Exit Sub                      ' Przerywamy brak możliwości posiadania starych wpisów w wierszu startowym nagłówka tabel nr. 11
-    
-    Dim emptyCount As Long                          ' Najpierw policz puste wiersze - pytanie ma sens tylko, gdy faktycznie jakieś są
-    For r = 12 To maxR
-        If Trim(CStr(ws1.Cells(r, 1).Value)) = "" And Trim(CStr(ws1.Cells(r, 3).Value)) = "" Then emptyCount = emptyCount + 1
-    Next r
-    If emptyCount = 0 Then Exit Sub
-    
-    ' ZGODNIE Z KOREKTĄ UŻYTKOWNIKA - Makro musi pytać przed usunięciem wierszy
-    If True Then                                    ' bez pytania - usuwa tylko calkiem puste wiersze ' Okienko potwierdzające operację modyfikacji układu (kasacji rzędów z Arkusz1)
-        For r = maxR To 12 Step -1                  ' Przejście w pętli P-U-L-S-U-J-Ą-C-E-J-! Od tyłu pliku, do góry. Przez usuwanie (Delete), dolne wiersze podjeżdżają w górę i omijane są numery R w tradycyjnej pętli. Usuwając od tyłu omijamy zepsute usunięcia.
-            If Trim(CStr(ws1.Cells(r, 1).Value)) = "" And Trim(CStr(ws1.Cells(r, 3).Value)) = "" Then ' Detekcja kompletnej pustki. Brak wpisanego atrybutu pliku jak "Opis", nie uratuje go jeśli w nazwie ani unikalnym URN w kolumnie 3 nic mu nie piszczy - co znaczy że wiersz "umarł i jest ułomny" z błędem w klejeniu ręcznym EXCEL
-                ws1.rows(r).Delete                  ' Dokonanie faktycznej egzekucji polecenia poprzez obiekt systemowy VBA i skasowanie z powierzchni Excela ułomnego wpisu pustego wiersza. (Arkusz automatycznie dosuwa wiersze w górę z powrotem by zapełnić lukę po rzędzie 'r').
-            End If                                  ' Koniec identyfikacji błędów i wierszy zniszczonych przy ręcznej edycji exela!
-        Next r                                      ' Koło napędowe pętli tyłowej - przejdź na niższy (czyli wyższy wizualnie) rząd Exela by go przetworzyć przez wariant if Empty Delete = true
-    End If                                          ' Zakończenie obróbki wiadomości ostrzegawczej (nie skasuje jeśli zablokujesz okienkiem na ekranie!)
-End Sub                                             ' Wyjście zwrotne po zniszczeniu pustaków
-
-Private Sub ProcessSingleCSVRow(ws1 As Worksheet, rawRow As String, csvHeaders() As String, csvColMapping() As Long, colDict As Object, urnCol As Long, pathCol As Long, urnIndex As Long, pathIndex As Long, updaterIndex As Long, folderLinkIndex As Long, ByRef dictExcelURNs As Object, ByRef dictExcelFolders As Object, ByRef changesCount As Long) ' Procedura serce Delty, procesująca tylko jednego pacjenta/wiersza
-    Dim cols() As String                            ' Array służący jako podziały na dane wejściowe atrybutowe, 1,2,3... do pociętego wiersza z potokiem "|"
-    cols = Split(Replace(rawRow, """", ""), "|")    ' Demontaż znaków zbędnych jak podwójne cytaty (dodawane przy eksporcie stringów CSV na siłę) a na końcu cięcie według "Potokowych Pionowych kresek CSV"
-    If UBound(cols) < urnIndex Then Exit Sub        ' Zabawa w piaskownicy! URN jest ostatnim lub dalekim elementem tablicy jeśli podział z Split wywalił się błędem np na 1 słowie (UBOUND(COLS) mniejszy niz INDEX np. z URN), nie wchodź by nie wywalać z Out Of Bounds index error, bo plik CSV nie zawierał wszystkich informacji i makro się potnie błędami
-    
-    Dim actualFolder As String, urn As String, currentUpdater As String, fName As String, folderUrn As String ' Poszatkowanie zebranych informacji z pliku zasilającego dla makra w odpowiednie miejsce u lokalnych zmiennych
-    actualFolder = Trim(cols(pathIndex))            ' Złap adres źródłowy do odniesień dla zielonego okienka
-    urn = Trim(cols(urnIndex))                      ' Unikalny token na poszukiwanie Hash w Hash Dict.
-    fName = Trim(cols(0))                           ' Element 0 tablicy wejściowej zawsze wskazywał w PS skrypcie wpis $obj['File Name'] który zrzuci się od razu do zmiennej.
-    
-    If updaterIndex >= 0 And UBound(cols) >= updaterIndex Then ' Weryfikacja braku minus jedynek nadanych po nierozpoznaniu Nagłówków w procedurach głównych mapujących tablice u góry
-        currentUpdater = Trim(cols(updaterIndex))   ' Znajdź tego kto zrobił pomyłkę lub zaktualizował atrybut po indeksie wyliczonym dla Excela
-        If currentUpdater = "" Then currentUpdater = "Unknown" ' Zamaskowanie braku odpowiedzi o Usera np. przez usunięte konta Windows / Bentley IMS, zamiast pustego wpisu i problemów formatowania
-    Else                                            ' Jeśli kolumna UPDATER w pliku po prostu nie istniała dla tej bazy od strony ustawień PS (A zdarza się!)
-        currentUpdater = "Unknown"                  ' Oznacz nieokreślonym flagiem bez wywoływania craszy z -1
-    End If                                          ' Zamknięcie odgałęzień łapania winowajcy edycji pliku
-    
-    If folderLinkIndex >= 0 And UBound(cols) >= folderLinkIndex Then ' Taki sam test logiczny -1 na upewnienie się co do istnienia ukrytego pola generowania URL w CSV
-        folderUrn = Trim(cols(folderLinkIndex))     ' Zapisanie adresu generowania z pamięci komórki na zmienną
-    Else                                            ' Nie ma linku URL... co zrobić w pętli?
-        folderUrn = ""                              ' Upewnić że bufor jest pusty i nie wstawia linku do skasowanego folderu w ProjectWise po starej linii CSV (Bezpieczeństwo sesji)
-    End If                                          ' Zamknięcie
-    
-    Dim headerRow As Long                           ' System lokalizowania "głównej ścieżki zielonego paska na EXCELU" z użyciem Słownika (Wielkie Litery) w pamięci Cache RAM komputera dla każdego pojedynczego pliku z wiersza
-    headerRow = FindOrCreateFolderHeader(ws1, actualFolder, folderUrn, urnCol, colDict.count, dictExcelFolders) ' Odpalenie procedury odpytującej lub kreującej (i aktualizującej pozycje dla) folderów bazowych by ten plik mógł pod niego wejść niżej do EXCELA z wynikiem numeru do dodania (np Rząd=341!)
-    
-    Dim foundRow As Long                            ' Numer przypięcia "istniejącego już starego elementu pliku w Excelu" odznaczony jako Zero by wymusić ewentualne generowania nowych elementów od zera
-    foundRow = 0                                    ' Wymuszenie twardego resetu stanu istnienia pliku na "Nie istnieje w starej karcie - Oznacz zero - wygeneruj dla niego z CSV nowy Wpis" (Wstawiane gdy stary plik z PW zniknął pod URN lub po starej nazwie - bo URN się zgubił gdy plik był wycięty w nowe miejsce a PW to zapomniał skatalogować w SQL)
-    
-    If urn <> "" And dictExcelURNs.exists(urn) Then ' Detekcja: Jeśli po adresie identyfikacji unikalnego elementu w Hash Txt jest to plik w starej liście "Excel" - on się nazywa "Istniejący/Aktualizowany Element! Mamy jego numer rzędu z pętli górnej, wystarczy użyć dla Excel"
-        foundRow = dictExcelURNs(urn)               ' Odkop numer rzędu z Excela i nadpisz Zmienną foundRow pod ten wykopany z Hasha numer w 1 ms czasu. Np znalazł na Wierszu=912 starego Exela!.
-    End If                                          ' Zakończenie wyciągania wariantu
-    
-    If foundRow = 0 Then                            ' Trudny błąd... Nie ma po URN identyfikacji pliku w systemie a ma folder i może być ukryty po "Samej starych zmianach nazwy w excelu zepsutym ręcznie". Należy sprawdzić ręcznie
-        Dim srchRow As Long                         ' Deklaracja pętli awaryjnej (Lokalne Do-While na pod-ścieżce po tym jak folder został wydobyty np z Rząd = 341. Pętla zacznie od 342 szukać starych duplikatów po po prostu "File Name").
-        srchRow = headerRow + 1                     ' Wskocz dokładnie 1 niżej od Zielonego foldera głównego znalezionego u góry
-        Do While Trim(ws1.Cells(srchRow, 1).Value) <> "" ' Kręć tak długo aż kolumna nazwy pliku nie będzie pusta w arkuszu
-            If Trim(ws1.Cells(srchRow, pathCol).Value) = "" Then Exit Do ' Wyskocz z błędu gdy pod nazwą znajduje się nagle pusty path... Oznacza że uderzyliśmy w Kolejny inny Folder Zielony - ten plik w ogóle tutaj fizycznie się nie znajdował! Przerywaj poszukiwanie po "FileName" w dół by nie zmarnować godzin.
-            If StrComp(Trim(ws1.Cells(srchRow, 1).Value), fName, vbTextCompare) = 0 And Trim(CStr(ws1.Cells(srchRow, urnCol).Value)) = "" Then ' po nazwie tylko wiersze bez linku (rewizje o tej samej nazwie inaczej nadpisywalyby sie) ' Ale gdy trafiliśmy na starą "Pustą/Niezgodną z URN nazwę i jest tak samo równa (Case insensitive poprzez StrComp)" co wygenerowany fName do pliku... TO JEST TEN ZGUBIONY DUPLIKAT NAZWY I JEST ON PRZETWARZANY
-                foundRow = srchRow                  ' Przypisz mu wiersz Excelowy bo to on (Mamy go!). I zamknij operowanie logiki do "0" by nadpisać. Zamiast tworzyć powielany wiersz jako "New Line"
-                Exit Do                             ' Ucieczka z pętli po dobrym wyszukaniu - Oszczędność prądu.
-            End If                                  ' Zakończenie wariantowania.
-            srchRow = srchRow + 1                   ' Posuw pętli While w głąb (przejście o 1 wiersz na dół dla poszukiwań "starej nazwy - zguby").
-        Loop                                        ' Koniec okrążenia - wróć i pytaj warunki
-    End If                                          ' Zakończenie bloku poszukiwania awaryjnego z zepsutym/pominiętym URN kluczem identyfikacji.
-    
-    If foundRow > 0 Then                            ' Decydujące dróg rozejście: Znaleziono numer stary wiersz > 0 czyli jest to plik w bazie Excela ze starym wpisem!
-        UpdateExistingFile ws1, foundRow, cols, csvHeaders, csvColMapping, colDict, urnCol, pathCol, currentUpdater, changesCount ' Wymuś wykonanie Sub-procedury UPDATE z licznikiem i odcieniowaniem żółtym podświetlania zmian (oraz rzuć notki w komórkę na modyfikatora/datę zmiany - wersjonowanie wsteczne w chmurce EXCEL!).
-        If urn <> "" Then dictExcelURNs(urn) = foundRow ' Uzupełnij ewentualny nowy zepsuty Hash (z trybu awaryjnego po starych wyszukanych po 'Nazwie' po starym pustym pliku z błędem w bazie). Hash się zaktualizował jako foundRow! Excel znów po mapowaniu słownikowym zna ten rekord do duplikatów przy MarkDelete i innych
-    Else                                            ' Odgałęzienie binarne - Wiersz "foundRow" po wszystkich walkach z Hash i Pętlą ręczną wyszedł zero. Co oznacza - Nowy plik ProjectWise wykazany w CSV ze skanowania Powłoki!.
-        Dim newRow As Long                          ' Zmienna pomocnicza przyjmująca ZWRÓCONY z "AddNewFile(..)" numerek nowego utworzonego świeżego rzędu podpiętego gdzieś pośrodku EXCEL'a przez .Insert Shift w arkusz
-        newRow = AddNewFile(ws1, headerRow, cols, csvColMapping, colDict.count, urnCol, pathCol, currentUpdater, dictExcelURNs, dictExcelFolders, changesCount) ' Zlecenie "INSERT SHIFT" i wypełnienia całej reszty białego i nowego wiersza Exela atrybutami, oraz dodanie go w statystyki, plus updateowanie logiki hash poprzez byReference zmiennej Słowników bo rzędy wszystkie "zostały zepchnięte i ich Hash indeks padł (np z rzędu 510 zjechał w Exel na 511)". Ta funkcja zmusza Hash aktualizację w locie by nie stracić 511.
-        If urn <> "" Then dictExcelURNs(urn) = newRow ' Wrzuć "ten nowy wiersz jako nowo-powiązany klucz URN do zaktualizowanego Słownika" - tak aby "MarkDelete(usuwające)" oraz inne w Excel pętli omijały i nie wywalały go jako Delete na koniec kodu w markDelete
-    End If                                          ' Koniec wariantu i całkowitej sub-obróbki jednego "rzędu pliku z bazy CSV" i powrót do wielkiej pętli nad CSV elementami.
-End Sub                                             ' Wyjście zwrotne
-    
-Private Function FindOrCreateFolderHeader(ws1 As Worksheet, actualFolder As String, folderUrn As String, urnCol As Long, totalCols As Long, ByRef dictExcelFolders As Object) As Long ' Znalezienie Nagłówka / Tła na zielono (Foldera Grupującego pliki w pliku)
-    Dim headerRow As Long                           ' Zmienna deklaracyjna
-    Dim searchKey As String                         ' Klucz szybkiego dostępu (Ujednolicony i bez spacji do hash - Upper Case by zrównać litery bo to folder operacyjny)
-    searchKey = UCase(Trim(actualFolder))           ' Zamiana literał na ogromne pod odczyt szybkiego wariantu dictionary (Dlatego w Hash deklarowano ignore case by nie kłóciło się ze zmienną na serwerze i ujednoliconą pod Windows Search)
-    
-    If dictExcelFolders.exists(searchKey) Then      ' Jeśli słownik starych Excel zielonych nagłówków rozpoznał ten wpis na liście z "CSV actualFolder"...
-        headerRow = dictExcelFolders(searchKey)     ' Masz jego numerek prosto z Cache Hash Excela! Podstaw pod Zmienną (Np. Numer: 520 rządek pod Folderek A\B\Polska)!
-        If folderUrn <> "" And InStr(1, folderUrn, "pw://", vbTextCompare) > 0 And urnCol > 0 Then ' Uaktualnienie gdy brakuje zepsutego/niewyczyszczonego linku [ Open Folder ] jako klikalnego url na arkuszu! (Uzupełnia przy aktualizacji brakujący detal do klikania w komórkę na zielono - i otwiera ją na platformie BENTLEY z poziomu EXEL!)
-            If ws1.Cells(headerRow, urnCol).Hyperlinks.count = 0 Then ' Test awaryjny - hiperłącze padło z formatowania użytkownika? Dodaj! (Tylko jeśli zero = Hyperlink zepsuty/niewidoczny)
-                ws1.Hyperlinks.Add Anchor:=ws1.Cells(headerRow, urnCol), Address:=folderUrn, TextToDisplay:="Open folder in PW" ' Narzędzie osadzające skrót pod zielony nagłówek z HyperLink VBA (Wymuszenie wektora na komórkę)
-                ws1.Cells(headerRow, urnCol).Font.Bold = True ' Pogrubienie Hyperłącza pod stylizacje - żeby ładniej wyglądało i pasowało.
-            End If                                  ' Koniec sprawdzania czy brakowało i wrzucania hiperłącza
-        End If                                      ' Zakończenie pełnej pętli modyfikacji brakujących łącz na starych zielonych Excelowych Headerach
-    Else                                            ' Odnoga if'a z Hash Search -> Jeśli zielony FOLDER nagłówek "nie istnieje (zwraca z hash pustkę dla ActualFolder z CSV.. znaczy się - że w bazie ProjectWise narodził i zrodził się zupełnie nowy system folderowy!)"
-        Dim lastR As Long                           ' Szukanie ostatniego pustego dachu na dole Excela dla zbudowania nowego drzewka - i wstawienia zielonego paska na dole by dokleić mu potem wpisy puste białego!
-        Dim lastRCell As Range                      ' Obiekt Range w celu interakcji po stronie EXCEL Arkusza i "wyprowadzenia ataku na pozycję od tyłu na zlokalizowanie podkładu"
-        Set lastRCell = ws1.Columns(1).Find(What:="*", LookIn:=xlFormulas, SearchOrder:=xlByRows, SearchDirection:=xlPrevious) ' Jak zwykle, znalezienie najbardziej skrajnego zapisu w Arkusz by wiedzieć, gdzie doczepić Nowy Element Bazy (Doczep do końca pociągu nowy wóz Zielony pod Grupę folderową z ProjectWise!)
-        If Not lastRCell Is Nothing Then lastR = lastRCell.Row Else lastR = 11 ' Gdy skraj wierszowy został zidentyfikowany to przypisz go. Fallback na nagłówkowy 11 w przypadku braku lub destrukcji całego szkieletu Excelem by nie wywalać z błędu -1 lub "0 is invalid range!"
-        If lastR < 11 Then lastR = 11               ' Twardy stop dla zepsutego Nothing gdy plik jest ułomny (od Rząd = 11 ładuj)
-        
-        headerRow = lastR + 1                       ' Zjedź o jedną dół od końca i utwórz "TUTAJ BĘDZIE RZĄD NA FOLDER ZIELONY" jako pozycja dla nowego Elementu Grupy w excel
-        ws1.Cells(headerRow, 1).Value = actualFolder ' Zapisz Nazwę jego Path w kolumnę pierwszą na świeżym białym dole!
-        ws1.Range(ws1.Cells(headerRow, 1), ws1.Cells(headerRow, totalCols)).Interior.Color = CLR_FOLDER ' Oznacz pozycję do końca nagłówka kolorów RGB jako JASNY ZIELONY Z FORMATOWANIA
-        ws1.Cells(headerRow, 1).Font.Bold = True    ' Pogrub czcionkę na Nazwie ścieżki i podziału pliku
-        
-        If folderUrn <> "" And InStr(1, folderUrn, "pw://", vbTextCompare) > 0 And urnCol > 0 Then ' Dorzuć nowy świeży klikalny URL Linker (Zabezpieczenie przy braku URL jak zwykle - sprawdzanie PW:// aby upewnić z bazą) do ProjectWise po instalacji pod zielony blok (Nowo narodził się folder a więc dorób jego odpowiednik hiperłącze w EXCEL!)
-            ws1.Hyperlinks.Add Anchor:=ws1.Cells(headerRow, urnCol), Address:=folderUrn, TextToDisplay:="Open folder in PW" ' Instrukcja dodania dla nowej komórki hyperlinka wizualnego (z tekstem '[ OPEN FOLDER ]' by nie zagracać pliku setką długich szarych krzaków pod URN)
-            ws1.Cells(headerRow, urnCol).Font.Bold = True ' Pogrub klikalny dodany element hiperłącza by było ładnie i logicznie odróżnialne
-        End If                                      ' Zakończenie procesu dokładania klikacza pod Folder!
-        dictExcelFolders(searchKey) = headerRow     ' Aktualizacja na boku pamięci Hash dla "Dictionary Zielonego Folderu" o najświeższy nowo wytworzony wpis na pozycję HeaderRow pod plikiem Excel (Aby przy następnych plikach CSV należących od nowa do 'TEGO SAMEGO ZIELONEGO NAGŁÓWKA NA DOLE - znalazło po nim z łatwością ten sam klucz i dorzuciło już jako 'Istniejący Zielony - Insert pod Spód białym' a nie by mnożył zielone pod sobą - Bo hash został teraz zaaktualizowany w locie!)
-    End If                                          ' Końcowa akcja pętli kreowania w głowach / grupowaniu zielonych wpisów odznaczających hierarchie drzew z PW na płaskim modelu tabeli Excel CSV
-    FindOrCreateFolderHeader = headerRow            ' Zwrot dla zmiennej na funkcję, o wskazaniu ostatecznego rzędu EXCEL (np 351 lub 951 jako nowo dodany dla pustego pliku na dole!), gdzie ten docelowo "Wyszukany/Skonstruowany przed chwila" Folder ma Rząd. Pozwala to operacji pod spodem do rzucenia pod ten 951 lub 351 pliku (Biały wiersz pod spód z informacjami) w kodach "AddNewFile / Update").
-End Function                                        ' Koniec budowy główki Zielonej pod pliki
-
-Private Sub UpdateExistingFile(ws1 As Worksheet, targetRow As Long, cols() As String, csvHeaders() As String, csvColMapping() As Long, colDict As Object, urnCol As Long, pathCol As Long, currentUpdater As String, ByRef changesCount As Long) ' Kod dokonujący Modyfikacji i aktualizacji Pliku do wersji Wierszów (Update Data from delta na starym rekordzie i żółci komórki na różnice!).
-    Dim lastCol As Long: lastCol = colDict.count    ' Ściągnięcie ostatniej mapowanej struktury ze spłaszczonego Hash słownika atrybutów dla Excela jako LastCol (By usunąć np kolory czerwone z Delete z poprzednich odpaleń aż po brzeg mapy)
-    
-    If ws1.Cells(targetRow, 1).Interior.Color = CLR_DELETED Then ' Jeśli plik w starym excelu posiadał kolor RGB czerwień i był Strikethrough(Skreślony) - z procedury MarkDeleted z poprzedniego dnia (Oznaczony do kosza bo wczoraj go ktoś wywalił w ProjectWise a dzisiaj wrócił!) to makro zdejmie ten kolor na gładko
-        ws1.Range(ws1.Cells(targetRow, 1), ws1.Cells(targetRow, lastCol)).Interior.Color = xlNone ' Zresetuj podłoże na brak koloru (Normalny stary biały rządek powrócił po śmietniku chmury ProjectWise jak zmartwychwstały zza Grobu i w locie CSV znów mu odczyta parametry)
-        ws1.Range(ws1.Cells(targetRow, 1), ws1.Cells(targetRow, lastCol)).Font.Strikethrough = False ' Ściągnij błąd przekreślenia pliku jak wyżej z czcionki na false i odśwież
-    End If                                          ' Koniec wariantu de-red zombiaczego pliku powracającego na wykaz bazy (Update przy zmartwychwstaniu)
-    
-    Dim maxC As Long, c As Long                     ' Ograniczniki w kolumnach CSV
-    maxC = UBound(cols)                             ' Zmienna z max kolumn jakie w tablicach ma CSV ściągnięte od powłoki w linii podziału Potoku (Splita na wierszu wczytywanego Stringa wyżej)
-    If maxC > UBound(csvHeaders) Then maxC = UBound(csvHeaders) ' Normalizacja zapobiegająca błędowi uBound Exception gdy PowerShell wrzucił o jedną/dwie nadmiarowe pałeczki '|' potoku za dużo na końcówkę i tablica cols ma 15 pól, a nagłówków było CSV_HEAD 13 - Utnij to nadmiarowe puste i sprawdzaj do max 13 (Bezpieczeństwo na krawędzi blatu).
-    
-    For c = 0 To maxC                               ' Kręć się po kolumnach i porównuj komórka CSV <-> Excel komórka na poszukiwania zmian "Żółci - Delta"! Od kolumny zera (np nazwy w pliku)
-        Dim targetCol As Long                       ' Oznaczenie kolumny Excel pod która wskazuje Hash Array od kolumny C w array z pliku CSV
-        targetCol = csvColMapping(c)                ' Pobranie z mapy np dla C = 4 (Oznacza Datę w CSV kolumnie) Maping wskazuje że Data na Excel "TargetCol" to Kolumna 'F'. Wpisz pod to numer Excel kolumny np 6 i uderz w Excel target! To działa po to bo Hash map pozwala Excelowi mieć 'Opis' na kolumnie 'Z' a w bazie z CSV ma na pozycji '2'. To się samo znajduje i przekleja prawidłowo by użytkownik na 1 arkuszu mógł przesuwać na boki sobie sam atrybuty wedle kaprysu na myszce po Arkuszu! To kluczowa sprawa Makra by nie nadpisać mu nazwy na Opisie i nie robić hardcode! Target col to ratuje przed tragedią
-        If targetCol > 0 Then                       ' Jesli mapowanie wydało cokolwiek (Czyli nie równa się zero, puste = 'False Map' - zignoruj i nie wrzucaj zmian)
-            Dim oldVal As String, newVal As String  ' Rezerwacja pamięci w pętli. Bufor starego wpisu (Odczyt EXCEL) oraz nowego String od powłoki (z podziału rzędu pliku CSV na zmienne tablic cols)
-            oldVal = Trim(CStr(ws1.Cells(targetRow, targetCol).Value)) ' Odczyt na czysto wycięty i sformatowany do testu ze starego pliku Excela
-            newVal = Trim(cols(c))                  ' Nowy string wejściowy jako New Value
-            
-            If targetCol <> urnCol And targetCol <> pathCol And csvHeaders(c) <> "Updater" Then ' Wyłącz techniczne stałe plikowe, URN i ścieżkę jako "zmiany atrybutów żółte", updater - one są stałymi ukrytymi danymi do silników powiązań bazy i nie interesują użytkownika na warianty "zmiany wersji i żółte pola modyfikacji".
-                Dim isDiff As Boolean               ' Logiczna brama decyzyjna do wyzwalacza zmiany flagi (Na start False=Nie Różni Się). Skrypt omija fałszywe powiadomienia (false positives). Poniżej jest skomplikowany system detekcji różnicy w datach - Np "Excel myśli że 20-03 = 20-March-2023 i zapisze jako Double a CSV da ci tekst String = 20.03.2023". Dla VBA to są DWA RÓŻNE WPISY = Rzuci żółcią że zaktualizował ale dla usera nic się tam nie zmieniło i uzna program za uszkodzony gówniany system Excel! Brama IS DIFF to filtruje
-                isDiff = False                      ' Start domyślnej blokady na false.
-                
-                If StrComp(oldVal, newVal, vbTextCompare) <> 0 Then ' Weryfikacja czystego StrComp z ignorowaniem 'A' na 'a' po Text Compare dla zepsutych przez uzytkownika wielkosci. Jesli jednak się RÓŻNI po podstawowym - przepusc do dalszej analizy false positive isDiff = True
-                    isDiff = True                   ' Odbezpiecz flagę zmiany na 'Prawda = Odnotowano Różnice!'
-                    Dim dOld As Date, dNew As Date  ' Rozpoczęcie filtra Dat False-positives. (Blokuje rzucanie zmianą gdy 'Data = data').
-                    On Error Resume Next            ' Blok awaryjny dla błędów gdy nie potrafi sformatować bzdurnych starych wpisów EXCEL (np CData z tekstu 'Brak') - Ominie i nie rzuci awarią do loga i nie zamknie okna!
-                    If IsDate(oldVal) And IsDate(newVal) Then ' Czy stary Excel wpis i nowy wpis jest datą z systemu - Sprawdź w 1 milisekunde w locie po komórkach pod IsDate z C++! Zaczyna się walka o to by Excel nie kolorował pustych dat na źle.
-                        dOld = CDate(oldVal)        ' Sformatuj awaryjnie stary string Excel na prawdziwy obiekt Double Data z CDate(String)
-                        dNew = CDate(newVal)        ' Odkoduj nowy na tak samo CDate Date obiekt. Teraz mają tą samą strukturę. Data to double po kodowaniu Windows
-                        If Err.Number = 0 Then      ' Przetestuj czy przy formatowaniu (powyżej od On Error Resume) padł na pysk CDate z winy np zepsutej litery w dacie '21-Marzcck=2012'. Jeśli przeszedł = Number Zero
-                            If Int(dOld) = Int(dNew) Then isDiff = False ' Główny myk - Zrównaj do czystej daty całkowitej Double pod Int, czyli np bez ułamków na godzinach jeśli CSV podał "20-03-12 15:40" a excel zapamiętał w komórkach "20-03-12". Wyłącz po Int = Int fałszywą odnotowaną zmianę i uratuj plik przed zżółceniem! Ustaw z powrotem False flagę bo obie te daty pomimo innych dopisek Stringów mają ten sam numer dni całkowity Int!
-                        End If                      ' Zamknięcie testu zero po błędach CDate na liczbach
-                    End If                          ' Zakończenie filtrowania problemu systematycznego CDate pod EXCEL - ominięto żółty błąd aktualizacji po niczym dla oka
-                    Err.Clear                       ' Oczyszczenie brudów awaryjnych "On Error Resume"
-                    If isDiff And IsNumeric(oldVal) And IsNumeric(newVal) Then ' Jeśli flaga 'isDiff' to nadal zmieniona flaga = True i jest to zmiana. A jednocześnie oldVal oraz NewVal to Double Numeryczny ułamek - Testuj ten fałszywy wpis po drugie na format liczb by excel nie wyrzucił że 0.20 to inna liczba niż 0,20 !! (To ten sam numer i go wygasimy poniżej). Sprawdzam czy Old i New to liczby?
-                        If CDbl(Replace(oldVal, ".", ",")) = CDbl(Replace(newVal, ".", ",")) Then isDiff = False ' Wyrównaj zamieniając ewentualną złą kropkę CSV na stary styl Excel Comma przecinka ułamków i wepchnij do formatu CDbl - ułamka, jeśli są w konwersji CDbl równe to zgaś i wyrównaj ten brud do false! Excel nie podświetli po raz setny tego jako zmianę! Bo z poziomu liczby double to to samo ułamek pomimo kropki
-                    End If                          ' Zakończ obsługę CDbl (false pos. na numerach)
-                    On Error GoTo 0                 ' Odbezpiecz system awaryjny po skończonym filtrowaniu fałszywych alarmów (Delta isDiff logic) - Przywróć błędy i zgłoszenia makra na twardo
-                End If                              ' Koniec testu i powrót głównego węzła zmian
-                
-                If isDiff Then                      ' Ostatecznie: Pętla oceniła po odfiltrowaniu zepsutych komórek z Excel (Daty / Kropki Przecinki CDbl / Typ Text Spacji Case itd) "PRAWDA JEST! IsDiff. To NOWA ZMIANA ATRYBUTU DELTA!". Podświetl, wrzuć wersje do historii i zaprezentuj żółć!
-                    If oldVal = "" Then             ' Odrzucenie systemu notek w komentarzu jeśli stary pole w excel było puste od początku... Excel by się pluł o dopięcie tam pustki. Wrzuca tam po prostu "Czysty wpis bez podświetleń na żółto przy pierwszym ściąganiu z bazy od białej/pustej starej planszy Excel" (W ten sposób tylko nowe puste ściągania nic nie zżółknią).
-                        ws1.Cells(targetRow, targetCol).Value = newVal ' Po prostu zaktualizuj plik od PW i nadpisz po cichu pustą kratę bez rzucania zmian po oczach bo jej "Stara wersja" nie istniała do historii. Zignoruj AddLog do historii atrybutu "Old->New"
-                    Else                            ' Mamy do czynienia ze zmianą nad wpisem który "ISTNIAŁ" jako oldVal - Oznacz jako Różnicę i zaktualizuj Historię Komórki Komentarzem żółtym - Excel Comment (Wersjonowanie)!
-                        Dim cmtText As String       ' Definicja do wpisu Komórkowego (prawy przycisk na Excel z notatką komórkową widoczną z góry czerwoną strzałką myszki ukrytą).
-                        cmtText = Format(Now, "yyyy-mm-dd HH:mm") & " " & csvHeaders(c) & "=" & oldVal & " (User: " & currentUpdater & ")" ' Zbuduj z parametrów ciąg historyczny do Excel (np: 2026-03-24 Nazwa=Projekt_Budowlany (User: Jan Kowalski)). Pokazuje dokładnie "Do jakiej starej wersji zmieniono od kogo i kiedy!"
-                        
-                        Dim cmt As Comment          ' Utwórz wirtualny obiekt do sprawdzenia - Co jeśli komórka Excel miała już "Komentarz pod sobą stary z poprzedniego tygodnia (Kolejna 5 zmiana pliku PW!)"
-                        Set cmt = ws1.Cells(targetRow, targetCol).Comment ' Sprawdź obiekt Komórki pod względem doczepionego na gładko Comment. Wrzuć go do "cmt" i sprawdz jego obecność w Pamięci Ram.
-                        If cmt Is Nothing Then      ' Zero powiązań z "Cmt" (Nic się nie przyczepiło). Pierwsza historyczna zmiana od stworzenia pliku w chmurze - dodajemy nowy dymek komórkowy Comment!
-                            ws1.Cells(targetRow, targetCol).AddComment cmtText ' Przypnij od razu sformatowany cmtText i dodaj "Bąbelek" dla docelowego miejsca nowej zmiany.
-                        Else                        ' Nie zero "Cmt", tam już istnieje dymek i zarys historyczny - Należy go odczytać i zrobić po chamsku "Append (Znak i dodanie z nową linią na spód)" by rozszerzyć listę do dołu!
-                            cmt.Text Text:=cmt.Text & vbCrLf & cmtText ' Wywołaj polecenie wektora modyfikacji Text:= pobierając najpierw ze wskaźnika swój własny cmt.Text oraz doczep do tego vbCrLf (Linijka w Dół ENTER systemowy) oraz doczep aktualną zmianę cmtText zbudowaną wyżej. (System dodawania historii zmian atrybutów działa z Excel bez spowalniania jako C++ backend)!
-                        End If                      ' Zamknij dodawania komentarza wstecznego dla Wersjonowania Excela Delty ProjectWise
-                        
-                        ws1.Cells(targetRow, targetCol).Interior.Color = CLR_CHANGED ' Zmień tło całej widocznej kratki komórki na ostrzegawczy Żółty na arkuszu Excel żeby Użytkownik go widział jako "Różnica - DELTA CHANGED!".
-                        ws1.Cells(targetRow, targetCol).Value = newVal ' Aktualizuj również jej fizyczny nowy środek po CSV paczce, by po otwarciu miała najświeższe PW dane!
-                        
-                        If targetCol = 1 Then       ' Warunkowanie małego logu u dołu. Jeśli zaktualizował samą Naze pliku "Name" (Kolumna Excel = 1 to nazwy). Zgłoś nazwę
-                            AddLogEntry "CHANGED", newVal, csvHeaders(c), oldVal, newVal, currentUpdater, RGB(255, 242, 204) ' Rzuć wpis do Arkusza Zmian "Log" rzędu 'CHANGED' z NewVal by nazwa pliku nie rzucała starym i się myliła z nową modyfikacją (Log jest pomarańczowy RGB). Zapis "Nowa -> Stara"
-                        Else                        ' Jeśli to modyfikacja 'Opisu' albo innego Atrybutu niż główna nazwa "Kolumna Excel inna niż 1"
-                            AddLogEntry "CHANGED", ws1.Cells(targetRow, 1).Value, csvHeaders(c), oldVal, newVal, currentUpdater, RGB(255, 242, 204) ' Rzuć staryą zaktualizowaną w systemie nazwę do logowania
-                        End If                      ' Koniec generowania z logiem atrybutów Update do Arkusza.
-                        changesCount = changesCount + 1 ' Dodano jedną Zmianę - Wrzuc na Zmienną sumującą by podliczyć statystyki dla MsgBox i logu powiadomień po przeleceniu całego pliku.
-                    End If                          ' Zakończ główny system sprawdzający puste zmiany Notek wersji dla tego Atrybutu.
-                End If                              ' Zakończenie IsDiff filtru - po odrzutach nic się nie wydarzy po nim w pętli. Kod działa gładko.
-            Else                                    ' Przypadek drugi od "If<> urnCol/Path itp" z góry, gdy Target Kolumny = To URN Link "PW" (Klikalny Adres). Ten wpis systemowy od platformy musi być nadpisywany z cicha.
-                ws1.Cells(targetRow, targetCol).Value = newVal ' Brutalne proste "Aktualizuj wpis tekstu pod komórkę linka pod spód bez zmian na Żółto bo to systemowy link od powłoki, wklej go na biało!"
-                If targetCol = urnCol And newVal <> "" And InStr(1, newVal, "pw://", vbTextCompare) > 0 Then ' Ale dla URN Link musi być coś na "Klin" by znów był hiperłączem otwierającym system jak po usunięciach user format - Wymuś sprawdzenie hiperłącza z tekstem pw i uruchom wstawkę awaryjną na obiekt
-                    If ws1.Cells(targetRow, targetCol).Hyperlinks.count = 0 Then ' Gdy ten systemowy wektor "Urn" był na czysto (Zgubił "Niebieski Link Klikalny W Excel") - Bo użytkownik wkleił bez formatowania plik z góry? Zabezpiecz plik w locie.
-                        ws1.Hyperlinks.Add Anchor:=ws1.Cells(targetRow, targetCol), Address:=newVal, TextToDisplay:=newVal ' Doczep na nowo hiperłącze pod obiekt by Excel potraktował systemowy podkład jako otwierany po "Klik" do otworzenia platformy
-                    Else                            ' Miał Hiperłącze, ale adres url może być inny od tego co miał po nowym eksporcie CSV bazy plik zmienił go!
-                        ws1.Cells(targetRow, targetCol).Hyperlinks(1).Address = newVal ' Aktualizuj środek/Cel starego doczepionego Hyperłącza - nadpisanie systemowe pod maską w 0 ms!
-                        ws1.Cells(targetRow, targetCol).Hyperlinks(1).TextToDisplay = newVal ' Aktualizuj wygląd pod spodem (System to uaktualni dla nowego adresu nowej chmury dla pewności na czysto z CSV!)
-                    End If                          ' Zakończenie nadpisywania URN bez żółtych flag - z weryfikacją poprawności "Click Url!" w komórce EXCEL.
-                End If                              ' Zamykanie sprawdzania Target Link / URN wariantów dla atrybutów systemowych (ukrytych przed wersją dla "Delty").
-            End If                                  ' Zamykanie IF Target Col operacji i bloków filtrowania atrybutów kolumny z wiersza
-        End If                                      ' Zakończenie "Zabezpieczenia" (Jeśli równe Zero = fałszywy map Hash table "Klucz pusty/Zepsuty z mapowania od początku") - Zignoruj i przesuń po pętli.
-    Next c                                          ' Skacz pętlą For do kolejnej C "Kolumny z CSV z atrybutem i ładuj jej właściwości do Excel komórek po wierszu!"
-End Sub                                             ' Kaskada po wykonaniu aktualizacji Zółci (Diff Delt) i ukrytych parametrów dla Pół EXCEL z CSV wierszy i zwolnij zasób wyjścia do Pętli Wyższej nad rzędami.
-
-Private Function AddNewFile(ws1 As Worksheet, headerRow As Long, cols() As String, csvColMapping() As Long, totalCols As Long, urnCol As Long, pathCol As Long, currentUpdater As String, ByRef dictExcelURNs As Object, ByRef dictExcelFolders As Object, ByRef changesCount As Long) As Long ' Dodawanie Elementów Plików Pustych do zielonego "Koszaru (Folder Header)" pod nowo wpisane struktury z powłoki powiązania bazy CSV
-    Dim insertRow As Long, c As Long                ' Deklaracja zmiennej do trzymania wskaźnika Wstawianego elementu na pustym i C (Kolumn z Atrybutami - For C pętle dla ładowania New File)
-    insertRow = headerRow + 1                       ' Zjedź jeden niżej (Oczko Puste Białego Tła pod zielony nagłówek folderu - Tu wstawiamy plik by znalazł się 'W nim / Pod Nim'). Do loop wciśnie na spód ten wiersz po niższym pętlach o ile inne już nie zapełniały jego wnętrzności!
-    
-    Do While ws1.Cells(insertRow, 1).Value <> "" And Trim(ws1.Cells(insertRow, pathCol).Value) <> "" ' Zabezpieczenie przed "Przebiciem Excela"! Kręć pętlą dopóki ta jedna kratka (headerRow+1) w dół pod Folderem Zielonym JEST ZAJĘTA (Ma inną starą nazwę i inną ścieżkę!). Znaczy to że folder jest pełen plików starych, omiń na spód szukając białego pola. Przebij go w głąb jego "Wnęki na białe wiersze Excel z listą" aż nie natrafisz na pole puste lub koniec pliku na wpis
-        insertRow = insertRow + 1                   ' Dokładaj plus jedynkę i zjeżdżaj o "Zajęty stary plik z bazy". Tak długo i przesuwając na nowe czyste miejsce do włożenia "Spodem Pudełka zielonego koszyka Listy" i pętluj aż warunek wyda "Empty Cell!". Włóż ten Insert Row w ramy pustego pudła plikowego - "Tędy Wejdzie!"
-    Loop                                            ' Zamknij wyszukiwarkę dna grupy folderów
-    
-    ws1.rows(insertRow).Insert Shift:=xlDown        ' Mechanizm Excel "Shift Down!" - Zrób miejsce po pustym, zepchnij o jedną linię CAŁĄ RESZTĘ ARKUSZA Z INNYMI ZIELONYMI FOLDERAMI DO TYŁU! (Zrób insert Pusty biały u dołu kosza) a stara lista zachowa swoją pozycję pod zielonymi folderami na dół bo została ucięta .Insert'em EXCEL a nie pętlą nadpisującą makra.
-    
-    Dim k As Variant                                ' Krytyczna część dla Insert Shift! (Ponieważ Excel został "rozerwany" na dwie częsci i zepchnięty, to co było np Rzędem = 100 spadło u dołu i ma Rząd = 101 po dodaniu 1 insert Shift na pozycji np 50!) Hash jest Zrujnowany jeśli użył pamięci pod "Rządek starego Dict= 100 dla URN linku starego pliku pod folderem X, a po zejściu ShiftxlDown on znalazł się niżej, jak go makro Update-Existing wywoła by go zedytować na 100 wywali mu na pliku nad nim bo to 101!!!". Napraw Słowniki po zepchnięciu Shift DOWN
-    For Each k In dictExcelURNs.Keys                ' Przeleć pętlą po wszystkich ukrytych kluczach po nazwach Hash pamięci. Zaktualizuj ich "Value" na prawą kolumnę czyli numerki.
-        If dictExcelURNs(k) >= insertRow Then dictExcelURNs(k) = dictExcelURNs(k) + 1 ' Jeśli to powiązanie URN w hash miało NUMER rzędu równy bądź WYŻSZY(niżej w Excel od Insert = Został on Zepchnięty u dołu) dodaj mu pod wartość zapamiętanego powiązania "+1". Podbiłeś właśnie jego klucz w Hash i połączyłeś z wierszem po Update! To działa błyskawicznie w tysięcznych sekundy dla całej bazy w HashMap Excel Array bez wywalania Excel Shift Down!
-    Next k                                          ' Przeskocz pod następny w kluczu i napraw Hash plik z Dict Excel URNs (Pliki)
-    For Each k In dictExcelFolders.Keys             ' Powtórz operację "Naprawa podbicia Numerycznego po Insert Excel Zsuwu Shift" dla Słownika powiązań Hash Tabel 'Zielonych nagłówków od drzewa ProjectWise', co się zepchnęły.
-        If dictExcelFolders(k) >= insertRow Then dictExcelFolders(k) = dictExcelFolders(k) + 1 ' Dodaj jedynkę wyrównując powiązanie u dołu, pomijając te od góry Insert co leżą nieruszone.
-    Next k                                          ' Skocz na koniec kluczy - zaktualizuj Dict (Słownik Folders!). Ocalono cały plik Excel przed chaosem
-    
-    For c = 0 To UBound(cols)                       ' Wracamy na utarte szlaki białego, gotowego po Insert nowego pustego pola z uaktualnionymi Dictionary Hash Tablicami. Wypełnij kolumny dla C (atrybutu rzędu plikowego nowej dostawy do bazy).
-        If c <= UBound(csvColMapping) Then          ' Upewnij że znów C mieści się w dopuszczalnym zakresie indeksów po Mapach by nie sypnąć tablicy powiązań od 'Pustego - Ostatniego pustego wiersza w Splice Potokowego CSV'
-            Dim tCol As Long                        ' Deklaracja ułatwiacza powiązań
-            tCol = csvColMapping(c)                 ' Mapuj tak samo by Kolumna w pliku CSV na rzędzie 6 - zmapowała się na Excelu np pod G, unikając błędnych wpisów atrybutu (Zgodnie z ułożeniem usera na G).
-            If tCol > 0 Then                        ' Potwierdź zmapowany 'prawdziwy atrybut docelowy Excel = >0' dla ominiętych 0 z fałszywych nagłówków nie dla podglądu (np Linki Folder Urn = Zera! Nie wstawiaj ich w widoczne numery na biały Excel 1,2..).
-                ws1.Cells(insertRow, tCol).Value = cols(c) ' Zwykłe chamskie wstawienie nowego Atrybutu do nowej wstawionej pod Insert linii pod zielony folder, ładując nowość bez żółci jako "Świeży biały wiersz z CSV bez wersji".
-                If tCol = urnCol And cols(c) <> "" And InStr(1, cols(c), "pw://", vbTextCompare) > 0 Then ' Ale dla linków systemowych doczep po raz enty z powrotem funkcję Hyperlink (Na stałe wpisane by przy generowaniu URN klikalne było otwierane poprzez Baza danych Platformy Bentley, sprawdzające i odcinające pusty brak wpisu przy instalacji).
-                    ws1.Hyperlinks.Add Anchor:=ws1.Cells(insertRow, tCol), Address:=cols(c), TextToDisplay:=cols(c) ' Odepnij wizualnie i uformuj przycisk, używając od razu pełnego URN w wyświeltaniu bo "Taki chamski był URN na excelu, plik musi widać systemowo kod URN do odczytania powiązań z Dict, Hyperlink jest mu tylko osłoną".
-                End If                              ' Zamknij zabezpieczenia URN dla NewLine / NewFile
-            End If                                  ' Zakończ obsługę poprawnej TCol odczytanej z Map CSV dla komórek
-        End If                                      ' Zakończ omijanie błędów przepełnień "Złomków/Cieńkich Ramek Splite | po C++"
-    Next c                                          ' Zapętli dla reszty atrybutów nowo-powstającego wpisu z CSV...
-    
-    ws1.Range(ws1.Cells(insertRow, 1), ws1.Cells(insertRow, totalCols)).Interior.Color = xlNone ' Zdejmij Formatowanie by usunąć np stary kolor Żółty z insertowanego na zielonym czy biały pociągnięty po Shifcie z góry po Insertowaniu, narzucając pustkę koloru bez skaz (Biały) dla Czystości bazy na koniec wiersza do krańcówki TotalCols mapy - 'By biała linia wyczyściła błędy wiersza doczepionego i była Czysto biała'
-    ws1.Range(ws1.Cells(insertRow, 1), ws1.Cells(insertRow, totalCols)).Font.Bold = False ' Zdjęcie powikłań czcionki pod Shiftowane wstawienie obok Nagłówków itp by nowy wpis był jak w "Normalnym szarym Pliku a nie Zielonej Grupie pogrubionej". Wyrównanie do Normalności
-    ws1.Range(ws1.Cells(insertRow, 1), ws1.Cells(insertRow, totalCols)).Font.Strikethrough = False ' Zdejmij uszkodzone pod wstawkami z czerwoną linią przekreślenie ułomne. Ocali od fałszywych oznaczeń
-    
-    AddLogEntry "ADDED", cols(0), "-", "-", "-", currentUpdater, RGB(226, 239, 218) ' Loguj po zakończeniu! Wypuść "Zzieleniałe (Dodano Nowość - RGB zieleni wpis)" logowanie u dołu dla nowo wrzuconego Atrybutu Pliku ("-" dla odczytu pod puste i w nową pusta bo to pierwsze tchnienie).
-    changesCount = changesCount + 1                 ' Dodaj powiadomienie że makro coś tam na arkuszu "zmajstrowało" (Pliki zmienione i Delta jest > 0!) by odpalić MsgBox ze statusem na dnie procedur głownych
-    AddNewFile = insertRow                          ' ZWROT dla funkcji w c++ / VBA. Odeślij na wynik procedury ten "Gładki, nowowygenerowany, zmapowany po zsuwach InsertRow Numerek. By Główna procedura z Update Hash Dict wiedziała jak 'On ma teraz nowy rząd (np. ten plik ma = 345 z wygenerowanego)' i wstrzyknęła w główny Hash z duplikatami do Delete omijając go! "AddNewFile = np 345"! Powrót
-End Function                                        ' Koniec ciężkiego odłamu z wciskaniem na chama w środek pełnego układu Excel z zsuwem!
-
-Private Sub MarkDeletedItems(ws1 As Worksheet, urnCol As Long, pathCol As Long, lastCol As Long, ByVal numScopes As Long, ByVal arrCleanScopes As Variant, dictTxtLinks As Object, dictOkScopes As Object, ByRef changesCount As Long) ' Kod końcowy skryptu z usuwaniem elementów! Odpalany na tył po skończonym wgrywaniu nowości CSV vs Delta do bazy by nie uciekły (Wykonane odczyty do tyłu szukające martwych wpisów z Excel które ominęła Pętla Główna bo one "Zniknęły i nigdy do pętli wyżej z CSV nie wpadły jako Wpis!")
-    Dim maxR As Long, maxRCell As Range             ' Range do poszukiwań "Koniec Exela 1 kartki".
-    Set maxRCell = ws1.Cells.Find(What:="*", LookIn:=xlFormulas, SearchOrder:=xlByRows, SearchDirection:=xlPrevious) ' Jak zawsze szybki wyszukiwacz Excelowy dna i granicy wpisów z wierszy do ostatniej "Gwiadzki" z czegokolwiek (*), od tyłu po komórkach arkuszy pliku.
-    If Not maxRCell Is Nothing Then maxR = maxRCell.Row Else maxR = 11 ' Gdy skraj został zidentyfikowany to przypisz go, z fallback do 11 na pustym startowym ułomnym
-    If maxR < 11 Then Exit Sub                      ' Ochroń by nie szukał po wierszach nr np. 3 gdy zepsuto arkusz 1 ręcznym usunięciem by rzucić i zawiesić w OutOfBounds
-    
-    Dim rExcel As Long                              ' Deklaracja od góry pętli dla szukania w Excel na odwrót po wierszach.
-    For rExcel = 12 To maxR                         ' Główna pętla w pętli. Idzie po CAŁYM EXCEL OD SAMEJ GÓRY NAGŁÓWKÓW - Ale po EXCEL Wpisach zamiast CSV! I bada je wszystkie po kolei w tym co pozostało nienaruszone - "Z weryfikacją na Dict i Log z PowerShell = PRAWDA"
-        Dim targetPath As String, exURN As String, fileNameEx As String ' Rezerwacja bufora do wysyłania sprawdzeń (Sprawdzająca z Excel Path "Ścieżki folderów pod nim" czy exURN = "Unikalny stary wpis pod Excelem - np starożytny PW://Link... "). Oraz pobranie nazwy na zapas.
-        fileNameEx = Trim(ws1.Cells(rExcel, 1).Value) ' Zapis "Nazwa Starego Excel File do String"
-        targetPath = Trim(ws1.Cells(rExcel, pathCol).Value) ' Zapis "Ścieżka do zapytania sprawdzającego na drzewo z txt powiązań z powłoki"
-        If fileNameEx = "" Then GoTo SkipRow        ' Jeśli stary plik to "Pusty Śmieć ze złą nazwą = np wpis puste, lub biały pas Excel ręcznie narzucony lub inny brud". Przepnij ucieczką w pętli "GOTO SkipRow (Na Koniec Do NexT z Ominięciem Całego Bloku Poniżej)!"
-        
-        If ws1.Cells(rExcel, urnCol).Hyperlinks.count > 0 Then ' Sprawdź czy stara komórka nie wylosowała sobie starego dobrego Hyperlink jako odczytu... (Trzeba pobierać z bazy na stałe Hyperlink po adresie linku zamiast z samego Stringa EXCELA jeśli ten tam się znalazł "Pod maską w VBA = Z linka"). Ocalić ułomne URL.
-            exURN = Trim(ws1.Cells(rExcel, urnCol).Hyperlinks(1).Address) ' Wyrwij od powiązanego w EXCEL Wierszu w Kolumnie URN (Niebieski link pod tekstem ukryty) i zapisz w surowym text URL z obcięciem spacji dla starej zmiennej exURN.
-        Else                                        ' W innym przypadku
-            exURN = Trim(CStr(ws1.Cells(rExcel, urnCol).Value)) ' Odrzuć hyperlink (nie miało po prostu zepsute!) i wyciąg tekstowy kod surowy tekst "pw://.." na starca exURN bez obcinania URL. Z samej CStr na pewniaka Excel Formatowania Komórki.
-        End If                                      ' Zakończenie odczytu URN EXCEL
-        
-        exURN = Replace(exURN, "%7B", "{", 1, -1, vbTextCompare) ' BARDZO WAŻNE: Odzyskanie po eksporcie HyperLink z systemu "Twardo - Przeglądarkowych % Znaków Zastępczych". Hyperlink VBA robi %7B podczas ukrywania pod spód arkusza - Czego Pętla nie zrozumie! Odtwórz Klamrowe Otwarcie "%7B -> {" (By porównało na czysto %7B jako Czyste Hash)
-        exURN = Replace(exURN, "%7D", "}", 1, -1, vbTextCompare) ' Odtwórz zamknięcie powiązane w Project Wise Hash - Nawias "} zamykający zamiast webowych ułomnych znaków ASCII po starym hyperlink %7D"
-        exURN = Replace(exURN, "%20", " ", 1, -1, vbTextCompare) ' Webowy kod spacji z URL zepsuł by Dict-Txt hash z TXT Log od PowerShell - Odrzuć '%20' na spacji normalnej ASCII by odnalazł zgodność
-        exURN = Replace(exURN, vbCr, "")            ' Obetnij ukryte zniekształcenia potoku od Mac jeśli Excel HyperLink wniósł dziwne potoki
-        exURN = Replace(exURN, vbLf, "")            ' Odłup końcówki nowej lini Linuxowe (Jeśli URN się zwinęło z wklejenia)
-        exURN = Trim(exURN)                         ' Spłaszcz jeszcze raz i podetnij by był gotowy, odżywiony, naprawiony URL (exURN = "Czysty")
-        
-        If targetPath <> "" And InStr(1, exURN, "pw://", vbTextCompare) > 0 Then ' Najwyższa faza weryfikacji pliku pod usunięcie lub błąd. "Czy Stary Exel z Tego rzędu pod 'rExel' - To w ogóle jest 'STARY WYKAZ PLIKU' czy zwykły Zielony Nagłówek Grupy!". Plik posiada 'PW:// ' i Path? TZN JEST Weryfikowanym Do Delete elementem CSV!
-            Dim searchTarget As String              ' Zabezpiecz wyciągnięty w starym excel target Path w formacie "Ucase" z jednorodnym backslash "\" dla wyszukiwania zgodności katalogów na drzewie (Żeby nie pisał Delete dla całego innego wariantu)
-            searchTarget = UCase(Replace(targetPath, "/", "\")) ' Przepchana przez Backslash C:\
-            
-            Dim isUnderScope As Boolean             ' Sprawdzenie awaryjne (Czy ten stary EXCEL 'Katalog' jest z nami dzisiaj 'Skanowany od nowa z bazy Sheet2?' - Żeby nie robić "DELETE W ZEPSUTYM KOSZU" gdy rzucimy makro bez skanowania tego foldera dzisiaj (wykasowaliśmy go w sheet 2) co by podświetliło fałszywie miliony "Nie zeskanowanych plików jako usunięte z ProjectWise w bazie Czerwienią" - Weryfikacja Scopes chroni bazę Exela dla pliku z powłoki!)
-            isUnderScope = False                    ' Domyślnie NIE JEST W ODCZYTACH z TXT Folders - Odmów wywalenia (Do Not Delete)
-            
-            Dim i As Long                           ' Otwarcie licznika na pętle
-            For i = 1 To numScopes                  ' Dla każdego foldera wrzuconego w TXT Scopes list z PowerShell do Exela na początku macro...
-                Dim cleanScope As String            ' Oczyść scope nazwe (Root'a) od Powłoki pod szukanie na dysku twardym Excel w Target ścieżkach pliku w rExel.
-                cleanScope = UCase(Replace(arrCleanScopes(i), "/", "\")) ' Wydziel w 1 format C:\ i "DRZEWO\DRZEWO2\" (Wielkie Litery)
-                If dictOkScopes.exists(cleanScope) And InStr(1, searchTarget, cleanScope, vbTextCompare) > 0 Then ' Jeśli "Target stary EXCEL np. C:\Baza\Stary" znajduje się w wywołanym dzisiaj skanie na Root "C:\Baza\" z CSV Powłoki...
-                    isUnderScope = True             ' Znam ten obszar, był dzisiaj skanowany od stóp do głów w PowerShell CSV TXT. - FLAGA = "Możesz bezpiecznie wywołać Delete/Czerwony Kosz jeśli pliku 'Uciekło z Txt Log Tree'".
-                    Exit For                        ' Kończenie testowania folderu (ZNALEZIONO POWIĄZANIE DLA ZNAJDUJĄCEGO SIĘ SCOPE!). Zamykamy Scope For po znalezieniu prawdy!
-                End If                              ' Wyjście dla InStr testu na Stringach
-            Next i                                  ' Poszukaj po następnym Txt Scope czy nie jest powiązany stary Excel plik z inną gałęzią od powłoki w Sheet2!
-            
-            If isUnderScope Then                    ' Mamy PRAWDA NA ZGODNOŚĆ Z ZAKRESEM DZISIAJSZYCH BADAŃ (Ten folder wchodził pod skanowanie. Możemy bezpiecznie osądzić plik o "DELETED" z serwera!)
-                If Not dictTxtLinks.exists(exURN) Then ' PRAWIDŁOWY TEST - Czy ten 'Naprawiony ze znaków EX-Urn w Excel' NIE ISTNIEJE w TXT "Log.Txt z Drzewka Zbudowanego pod Powłoką, gdzie zapisał wszystkie zrzucone aktualnie linki ze 100% bazy Bentley!". Skoro NIE MA GO (Klucz Nie istnieje - Hash odrzuca False)... To uważa on że ten plik NIE Istnieje u niego po skanie, tzn = WYRZUCILI GO Z PROJECTWISE (USUNIĘTY LUB ZMIENIŁ FOLDER!). EXEL POSIADA GO FAŁSZYWIE!
-                    If ws1.Cells(rExcel, 1).Interior.Color <> CLR_DELETED Then ' A dodatkowo plik ten "JUŻ NIE ZOSTAŁ ZMALTRETOWANY na kolor Czerwony Czysty = Usunięty w Excel". Tzn że 'Dopiero co go wyrzucili - jest świeżynką'.
-                        ws1.Range(ws1.Cells(rExcel, 1), ws1.Cells(rExcel, lastCol)).Interior.Color = CLR_DELETED ' ZMALUJ TEN Wiersz na RGB Czerwony Koszmar do KRAŃCA PLIKU Excela! ("OZNACZENIE EXCEL_DELETE")
-                        ws1.Range(ws1.Cells(rExcel, 1), ws1.Cells(rExcel, lastCol)).Font.Strikethrough = True ' Dodatkowo Strikethrough Czerwonym Przekreśleniem od "Czerwona Linia" (Wyróżni uszkodzenie pliku przed okiem) po całej linii Rzędu do Last Col!
-                        AddLogEntry "DELETED", fileNameEx, "-", "Existed", "Deleted from PW", "-", CLR_DELETED ' Zarzuć mu czerwony Log na samym dole by podpadł pod "Delete History (Usunięto Z Projektu ProjectWise)" do wglądu Excel Log
-                        changesCount = changesCount + 1 ' Dolicz jako statystyka do ogłoszeń Makra zmian jako Czysta Różnica bazy - MsgBox wyskoczy z radosną nowiną (Mimo tragedii w usunięciu) by nie omijać logiki >0
-                    End If                          ' Zakończ obsługę odmalowania dla nie odznaczonych truposzy w starym pliku EXCEL.
-                Else                                ' "JEST ODNOGA DRUGA - ODNALAZŁ GO HASH! DictTxt Odnalazł go pod sobą!". Plik Txt miał go wygenerowanego i wykrzyczał 'Jestem URN-XYZ'. Plik z Exela był w Koszu/lub go nie było a teraz go "Trafiłem". Więc on POWRÓCIŁ. LUB NIGDY GO NIE SKASOWALI A SKRYPT GO ZŁAPAŁ
-                    If ws1.Cells(rExcel, 1).Interior.Color = CLR_DELETED Then ' Jeśli odzyskano URN który w starym excel był np Czerwony bo w zeszłym tygodniu usunęli plik do kosza z serwera? Ożył bo ktoś przywrócił backup na Cloud?
-                        ws1.Range(ws1.Cells(rExcel, 1), ws1.Cells(rExcel, lastCol)).Interior.Color = xlNone ' Zdejmuj Kolor Czerwień ze Starego! (Oczyść Wiersz Excel R z Czerwonego i oddaj białe) - ZMARTWYCHWSTANIE
-                        ws1.Range(ws1.Cells(rExcel, 1), ws1.Cells(rExcel, lastCol)).Font.Strikethrough = False ' Zdejmuj czerwoną linię przekreślającą by wrócił normalny plik Excel
-                    End If                          ' Zakończenie "Zmartwychwstania" i przywracania czerwonych plam z bazy
-                End If                              ' Zakończenie węzła Logiki usunięć w starym exelu (If Txt Exists Hash Search -> False = Mark / True = Save and DeMark).
-            End If                                  ' Zamknięcie testu powiązania skanowanych folderów "Scope / Drzewo w CSV Sheet_2" (isUnderScope). By uniknąć wściekłej czerwieni dla miliona ominiętych folderów z Sheet_2 wyłączonych z bazy dzisiaj!
-        End If                                      ' Zakończenie głownego bloku sprawdzającego "Czy ten wiersz starego exela to FOLDER zielony czy PLIK w ogóle!" po odczytach "PW://"
-SkipRow:                                            ' Zakotwiczenie punktu powrotnego ucieczki Goto (W przypadku gdy plik miał np puste wiersze/zepsute szare brudy nie od bazy a od użytkonwika i nie był nawet brany pod uwagę "Dziadostwo Ręczne - Zepsuta Nazwa"). GOTO Rzuca z góry kod tutaj z pominięciem setki linijek na twardo
-    Next rExcel                                     ' Zapętlij dla Excela (Przejdź z powrotem by testować Mark Delete starych plików do usunięcia z kosza (do następnego rExcel wyżej do końca maxR na dole pliku)).
-End Sub                                             ' Kaskadowe opuszczenie algorytmu weryfikacyjnego i Delta z powrotem.
+    ' --- log: zbiorczo ---
+    Dim nl As Long: nl = logs.Count
+    If nl > 0 Then
+        Dim la() As Variant, k As Long, ent As Variant
+        ReDim la(1 To nl, 1 To 7)
+        For k = 1 To nl
+            ent = logs(k - 1)
+            For j = 0 To 6: la(k, j + 1) = ent(j): Next j
+            la(k, 5) = "'" & CStr(la(k, 5)): la(k, 6) = "'" & CStr(la(k, 6))
+        Next k
+        wsLog.Range(wsLog.Cells(nextLogRow, 1), wsLog.Cells(nextLogRow + nl - 1, 7)).Value = la
+        Dim a0 As Long, aCol As Long
+        For k = 1 To nl                              ' kolory wg akcji (pasy tego samego koloru naraz)
+            Select Case CStr(la(k, 2))
+                Case "ADDED": aCol = RGB(226, 239, 218)
+                Case "CHANGED": aCol = RGB(255, 242, 204)
+                Case "DELETED": aCol = CLR_DELETED
+                Case Else: aCol = 0
+            End Select
+            If k = 1 Then a0 = 1
+            If k = nl Then
+                If aCol <> 0 Then wsLog.Range(wsLog.Cells(nextLogRow + a0 - 1, 1), wsLog.Cells(nextLogRow + k - 1, 7)).Interior.Color = aCol
+            ElseIf CStr(la(k + 1, 2)) <> CStr(la(k, 2)) Then
+                If aCol <> 0 Then wsLog.Range(wsLog.Cells(nextLogRow + a0 - 1, 1), wsLog.Cells(nextLogRow + k - 1, 7)).Interior.Color = aCol
+                a0 = k + 1
+            End If
+        Next k
+        nextLogRow = nextLogRow + nl
+    End If
+    If nAdd = 0 And nChg = 0 And nDel = 0 Then AddLogEntry "INFO", "No changes compared to the previous download.", "-", "-", "-", "-", 0
+    AddLogEntry "INFO", "Files: " & cnt & "  |  new: " & nAdd & "  |  changed: " & nChg & "  |  deleted: " & nDel, "-", "-", "-", "-", 0
+    If nextLogRow - 1 > logStartRow Then wsLog.Rows((logStartRow + 1) & ":" & (nextLogRow - 1)).Group
+End Sub
 
 Public Sub StyleHeader(rng As Range)                ' Wspólny, profesjonalny styl nagłówków tabel
     With rng
