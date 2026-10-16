@@ -1187,18 +1187,18 @@ End Sub
 
 Private Sub WritePsPrelude(psFile As Object, ByVal job As String)  ' wspolny naglowek skryptow PS: log do pliku (transcript), tryb okna, helpery
     psFile.WriteLine "$jobName = '" & job & "'"
-    psFile.WriteLine "$logDir = Join-Path (Split-Path -Parent $OutputFile) 'PW_Logs'"
-    psFile.WriteLine "if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }"
-    psFile.WriteLine "$logFile = Join-Path $logDir ((Get-Date).ToString('yyyy-MM-dd_HHmmss') + '_' + $jobName + '.log')"
-    psFile.WriteLine "try { Start-Transcript -Path $logFile -Force | Out-Null } catch {}"
-    psFile.WriteLine "Set-Content -Path (Join-Path $logDir 'last.txt') -Value $logFile -Encoding UTF8"
+    psFile.WriteLine "$psLogDir = Join-Path (Split-Path -Parent $OutputFile) 'PW_Logs'"
+    psFile.WriteLine "if (-not (Test-Path $psLogDir)) { New-Item -ItemType Directory -Path $psLogDir -Force | Out-Null }"
+    psFile.WriteLine "$psLogFile = Join-Path $psLogDir ((Get-Date).ToString('yyyy-MM-dd_HHmmss') + '_' + $jobName + '.log')"
+    psFile.WriteLine "try { Start-Transcript -Path $psLogFile -Force | Out-Null } catch {}"
+    psFile.WriteLine "Set-Content -Path (Join-Path $psLogDir 'last.txt') -Value $psLogFile -Encoding UTF8"
     psFile.WriteLine "try { Add-Type -Namespace Q -Name K -MemberDefinition '[DllImport(""kernel32.dll"")] public static extern IntPtr GetStdHandle(int h); [DllImport(""kernel32.dll"")] public static extern bool GetConsoleMode(IntPtr h, out uint m); [DllImport(""kernel32.dll"")] public static extern bool SetConsoleMode(IntPtr h, uint m);'; $h = [Q.K]::GetStdHandle(-10); $m = 0; if ([Q.K]::GetConsoleMode($h, [ref]$m)) { [void][Q.K]::SetConsoleMode($h, (($m -bor 0x80) -band (-bnot 0x40))) } } catch {}"
     psFile.WriteLine "try { $Host.UI.RawUI.WindowTitle = 'ProjectWise Integration - ' + $jobName; $Host.UI.RawUI.BackgroundColor = 'Black'; $Host.UI.RawUI.ForegroundColor = 'Gray'; Clear-Host } catch {}"
     psFile.WriteLine "function Say([string]$m, [string]$c = 'Gray') { Write-Host ((Get-Date).ToString('HH:mm:ss') + '  ') -NoNewline -ForegroundColor DarkGray; Write-Host $m -ForegroundColor $c }"
     psFile.WriteLine "function Say-Head([string]$t) { Write-Host ''; Write-Host ('  ' + $t) -ForegroundColor Cyan; Write-Host ('  ' + ('-' * 66)) -ForegroundColor DarkCyan }"
     psFile.WriteLine "Write-Host ''; Write-Host '  ================================================================' -ForegroundColor DarkCyan"
     psFile.WriteLine "Write-Host '   PROJECTWISE INTEGRATION' -ForegroundColor White; Write-Host ('   Job: ' + $jobName.ToUpper() + '   |   Started: ' + (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')) -ForegroundColor Gray"
-    psFile.WriteLine "Write-Host ('   Log: ' + $logFile) -ForegroundColor DarkGray; Write-Host '   You can keep working in Excel - this window runs in the background.' -ForegroundColor DarkGray"
+    psFile.WriteLine "Write-Host ('   Log: ' + $psLogFile) -ForegroundColor DarkGray; Write-Host '   You can keep working in Excel - this window runs in the background.' -ForegroundColor DarkGray"
     psFile.WriteLine "Write-Host '  ================================================================' -ForegroundColor DarkCyan"
 End Sub
 
