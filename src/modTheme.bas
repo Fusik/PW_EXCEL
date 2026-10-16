@@ -178,7 +178,7 @@ Public Sub StyleDashboard(wsV As Worksheet, ByVal subtitle As String, ByVal warn
     PrepareWindow
     Dim uf As Object
     For Each uf In VBA.UserForms
-        If uf.Name = "frmNavigator" Then uf.ApplyNavTheme
+        If uf.Name = "frmNavigator" Then uf.ApplyNavTheme: uf.DockToView   ' po zmianie naglowkow/szerokosci A:B nawigator dopasowany do kolumny A
     Next uf
     Application.ScreenUpdating = True
 End Sub
