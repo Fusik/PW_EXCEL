@@ -215,6 +215,16 @@ Private Function UiShape(wsV As Worksheet, ByVal nm As String, ByVal kind As Lon
     Set UiShape = shp
 End Function
 
+' Zamrozone kolumny A:B musza miec stala, wystarczajaca szerokosc (rowna niezaleznie od danych) - inaczej panel sie rozjezdza
+Public Sub EnsureFrozenWidth(wsV As Worksheet)
+    Const MIN_FROZEN As Double = 548            ' pt (ok. 730 px)
+    Dim need As Double
+    If wsV.Columns(3).Left < MIN_FROZEN - 1 Then
+        need = MIN_FROZEN - wsV.Columns(2).Left
+        If need > 20 And wsV.Columns(2).Width > 0 Then wsV.Columns(2).ColumnWidth = wsV.Columns(2).ColumnWidth * need / wsV.Columns(2).Width
+    End If
+End Sub
+
 ' Jesli element zaczynalby sie przed granica zamrozonych kolumn, a konczyl za nia - przesun go za granice
 Private Function SnapX(ByVal x As Double, ByVal w As Double, ByVal fz As Double) As Double
     If x < fz And x + w > fz - 2 Then SnapX = fz + 8 Else SnapX = x
@@ -224,6 +234,7 @@ End Function
 Public Sub DrawHeader(wsV As Worksheet)
     Dim t As TTheme, x As Double, y As Double, shp As Shape, k As Long
     Dim vw As String, sr As String, th As String, tg As String
+    EnsureFrozenWidth wsV
     Dim fz As Double: fz = wsV.Columns(3).Left: mFzUsed = fz   ' granica zamrozonych kolumn A:B - zaden element nie moze jej przecinac
     On Error Resume Next
     th = CStr(wsV.Range(THEME_CELL).Value): If Trim(th) = "" Then th = "Light"
