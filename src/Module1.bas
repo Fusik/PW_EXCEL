@@ -843,7 +843,7 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
     
     Dim sc As Long
     For sc = 1 To numScopes
-        If Not dictOk.exists(arrCleanScopes(sc)) Then AddLogEntry "WARNING", "Scope not scanned (skipped deletion check): " & arrCleanScopes(sc), "-", "-", "-", "-"
+        If Not dictOk.exists(arrCleanScopes(sc)) Then AddLogEntry "WARNING", "Scope not scanned (skipped deletion check): " & arrCleanScopes(sc), "-", "-", "-", "-", 0
     Next sc
     
     ' --- zapis bazy: naglowki + dane w paczkach ---
