@@ -176,6 +176,7 @@ Public Function RunQuery(ByVal srch As String, ByVal folder As String) As Long
     Dim inF() As Byte, f As String, pk As String, direct As Long, sub1 As Long
     ReDim inF(1 To gN)
     f = LCase(Replace(Trim(folder), "/", "\"))
+    If Trim(srch) <> "" Then f = ""                  ' szukanie dziala zawsze po calej bazie (filtr folderu jest pomijany)
     If f <> "" Then
         If Right(f, 1) <> "\" Then f = f & "\"
         For i = 1 To gN
