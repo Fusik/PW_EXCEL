@@ -126,7 +126,7 @@ Public Sub StartPobieranie(ByVal linksText As String, ByVal target As String)
     f.WriteLine "    if (-not (Ui-SetText $h $target)) { Write-Host '  UI Automation found no path field - fallback: Tab + paste' -ForegroundColor DarkGray; Key '{TAB}'; Key '{TAB}'; Key '{TAB}'; Key '^a'; Key '^v' }"
     f.WriteLine "    if (-not (Ui-Click $h 'Next')) { Key '%n' }"
     f.WriteLine "    $end = (Get-Date).AddSeconds(120)"
-    f.WriteLine "    while ((Get-Date) -lt $end -and [W]::Find('Export Wizard') -ne [IntPtr]::Zero) { Start-Sleep -Seconds 2; $h = [W]::Find('Export Wizard'); if ($h -ne [IntPtr]::Zero) { Focus $h; if (-not (Ui-Click $h 'Finish')) { [void](Ui-Click $h 'Next') } } }"
+    f.WriteLine "    while ((Get-Date) -lt $end -and [W]::Find('Export Wizard') -ne [IntPtr]::Zero) { Start-Sleep -Seconds 2; $w = [W]::Find('Warning!'); if ($w -ne [IntPtr]::Zero) { Write-Host '  file exists - Yes to All' -ForegroundColor DarkGray; Focus $w; if (-not (Ui-Click $w 'Yes to All')) { [void](Ui-Click $w 'Yes') }; continue }; $h = [W]::Find('Export Wizard'); if ($h -ne [IntPtr]::Zero) { Focus $h; if (-not (Ui-Click $h 'Finish')) { [void](Ui-Click $h 'Next') } } }"
     f.WriteLine "    $ok++"
     f.WriteLine "  } catch { $fail++; Write-Host ('  BLAD: ' + $_.Exception.Message) -ForegroundColor Red }"
     f.WriteLine "}"
