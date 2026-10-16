@@ -344,7 +344,7 @@ End Sub
 Public Sub EditSearch()
     Dim ws As Worksheet, v As String
     Set ws = ThisWorkbook.Sheets(SH_VIEW)
-    v = InputBox("Search phrase (empty = clear)." & vbCrLf & vbCrLf & "  HRX            contains HRX in any column" & vbCrLf & "  HRX-0??-*      * = any text, ? = any single character" & vbCrLf & "  filename:*HRX*   search only in a column (filename, path, link, updater, updated, status or any column name)" & vbCrLf & "  filename:"my file*"   quotes keep spaces together" & vbCrLf & "  -pdf  -path:Templates   exclude" & vbCrLf & "  several terms = all must match", "Search", CStr(ws.Range(VIEW_SEARCH).Value))
+    v = InputBox("Search phrase (empty = clear)." & vbCrLf & vbCrLf & "  HRX            contains HRX in any column" & vbCrLf & "  HRX-0??-*      * = any text, ? = any single character" & vbCrLf & "  filename:*HRX*   search only in a column (filename, path, link, updater, updated, status or any column name)" & vbCrLf & "  filename:""my file*""   quotes keep spaces together" & vbCrLf & "  -pdf  -path:Templates   exclude" & vbCrLf & "  several terms = all must match", "Search", CStr(ws.Range(VIEW_SEARCH).Value))
     If StrPtr(v) = 0 Then Exit Sub                  ' Cancel
     ws.Range(VIEW_SEARCH).Value = v                 ' zmiana komorki uruchamia filtr
     DrawHeader ws
