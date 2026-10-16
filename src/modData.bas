@@ -259,13 +259,13 @@ Public Sub DataStats(ByRef nFolders As Long, ByRef nFiles As Long, ByRef nChg As
     EnsureData
     nFiles = gN: nFolders = 0: nChg = 0: nDel = 0
     If gN = 0 Then Exit Sub
-    Dim d As Object, i As Long, iP As Long, iS As Long, s As String
+    Dim d As Object, i As Long, iP As Long, iSt As Long, s As String
     Set d = CreateObject("Scripting.Dictionary"): d.CompareMode = 1
-    iP = ColOf("PW Source Path"): iS = ColOf(COL_STATUS)
+    iP = ColOf("PW Source Path"): iSt = ColOf(COL_STATUS)
     For i = 1 To gN
         d(CStr(gData(i, iP))) = 1
-        If iS > 0 Then
-            s = CStr(gData(i, iS))
+        If iSt > 0 Then
+            s = CStr(gData(i, iSt))
             If s = "NEW" Or s = "CHANGED" Then nChg = nChg + 1
             If s = "DELETED" Then nDel = nDel + 1
         End If
