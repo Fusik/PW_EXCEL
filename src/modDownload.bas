@@ -118,7 +118,7 @@ Public Sub StartPobieranie(ByVal linksText As String, ByVal target As String)
     f.WriteLine "    else { Focus $h; Key '%s'; Key '%n'; Start-Sleep -Seconds 2; $h = [W]::Find('Export Wizard') }"
     f.WriteLine "    Focus $h; Set-Clipboard -Value $target; Start-Sleep -Seconds 1; Key '^a'; Key '^v'; Key '%n'"
     f.WriteLine "    $end = (Get-Date).AddSeconds(90)"
-    f.WriteLine "    while ((Get-Date) -lt $end -and [W]::Find('Export Wizard') -ne [IntPtr]::Zero) { Start-Sleep -Seconds 2; $h = [W]::Find('Document Export Wizard'); if ($h -ne [IntPtr]::Zero) { Focus $h; Key '%f' } }"
+    f.WriteLine "    while ((Get-Date) -lt $end -and [W]::Find('Export Wizard') -ne [IntPtr]::Zero) { Start-Sleep -Seconds 2; $h = [W]::Find('Document Export Wizard'); if ($h -ne [IntPtr]::Zero) { Focus $h; Key '{ENTER}'; if ([W]::Find('Export Wizard') -ne [IntPtr]::Zero) { Focus $h; Key '%f' } } }"
     f.WriteLine "    $ok++"
     f.WriteLine "  } catch { $fail++; Write-Host ('  BLAD: ' + $_.Exception.Message) -ForegroundColor Red }"
     f.WriteLine "}"
