@@ -260,7 +260,7 @@ End Function
 
 ' Wynik sprawdzania podfolderow (plik): linie A|atrybut|przyklad (tylko niepuste) i F|folder|atrybuty (TAB).
 ' Atrybuty trafiaja do arkusza Attributes (YES), mapa folder -> atrybuty do ukrytego arkusza AttrMap (kolejne aktualizacje nie skanuja znanych folderow).
-Public Sub MergeFoundAttributes(ByVal path As String, Optional ByVal exact As Boolean = False)
+Public Function MergeFoundAttributes(ByVal path As String, Optional ByVal exact As Boolean = False) As Long
     Dim fso As Object, st As Object, tx As String, ln() As String, i As Long, p As Long, q As Long, nm As String
     Set fso = CreateObject("Scripting.FileSystemObject")
     If Not fso.FileExists(path) Then Exit Sub
@@ -335,6 +335,7 @@ Public Sub MergeFoundAttributes(ByVal path As String, Optional ByVal exact As Bo
     End If
     If n > 0 Then Notify n & " new attribute(s) with values found in subfolders were added to sheet " & SH_ATTRS & " (YES)."
 Done:
+    MergeFoundAttributes = n
     On Error Resume Next
     fso.DeleteFile path
-End Sub
+End Function

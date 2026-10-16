@@ -274,6 +274,8 @@ Public Sub DrawHeader(wsV As Worksheet)
         x = x + wd(k) + 8
     Next k
     Set shp = UiShape(wsV, "ui_scan", msoShapeRoundedRectangle, x, y, 190, 32, t.inputBg, t.accent, "SCAN ATTRIBUTES (background)", t.inputFg, 9, wn & "StartAttrScan", False)
+    x = x + 198
+    Set shp = UiShape(wsV, "ui_pslog", msoShapeRoundedRectangle, x, y, 130, 32, t.inputBg, t.accent, "OPEN PS LOG", t.inputFg, 9, wn & "OpenLastPsLog", False)
     
     ' legenda + stronicowanie
     y = wsV.Rows(5).Top + 4: x = 10

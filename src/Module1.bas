@@ -11,6 +11,7 @@ Private gTxtPath As String, gStructPath As String, gPsPath As String, gCsvPath A
 Private gNumScopes As Long
 Private gScopes As Variant
 Private gNextPoll As Date
+Private gChainStep As Long                          ' 0 = brak lancucha, 1 = szybka aktualizacja, 2 = skan atrybutow, 3 = dokladne pobranie po nowych atrybutach
 Private gScanBusy As Boolean, gScanStart As Date, gScanNext As Date, gScanOut As String
 Private wsLog As Worksheet                          ' Zmienna przechowująca obiekt arkusza z logami
 Private nextLogRow As Long                          ' Zmienna przechowująca numer kolejnego, pustego wiersza do zapisu w logach
@@ -26,6 +27,7 @@ Public Function DownloadBusy() As Boolean
 End Function
 
 Sub DownloadFromProjectWise_PWPS()                  ' Publiczny punkt wejścia: chroni stan Excela i raportuje błędy
+    If gChainStep = 0 And CHAIN_ATTR_SCAN Then gChainStep = 1       ' UPDATE DATA = lancuch: 1 szybka aktualizacja -> 2 skan atrybutow -> 3 dokladne pobranie (gdy sa nowe atrybuty)
     If gBusy Then
         Notify "A ProjectWise download is already running in the background (PowerShell window). Please wait for it to finish."
         Exit Sub
@@ -46,7 +48,7 @@ Done:
 Fail:
     Dim errMsg As String
     errMsg = "Error " & Err.Number & ": " & Err.Description
-    gBusy = False
+    gBusy = False: gChainStep = 0
     On Error Resume Next
     If Not wsLog Is Nothing Then AddLogEntry "ERROR", errMsg, "-", "-", "-", "-", CLR_DELETED
     Notify "Macro stopped unexpectedly. " & errMsg
@@ -148,6 +150,7 @@ Done:
 Fail:
     Dim errMsg As String
     errMsg = "Error " & Err.Number & ": " & Err.Description
+    gChainStep = 0
     On Error Resume Next
     If Not wsLog Is Nothing Then AddLogEntry "ERROR", errMsg, "-", "-", "-", "-", CLR_DELETED
     Notify "Macro stopped unexpectedly. " & errMsg
@@ -186,7 +189,17 @@ Private Sub RunFinish()
     ThisWorkbook.Sheets(SH_VIEW).Activate           ' Glowny arkusz pracy to Widok
     RefreshNavigator                                ' drzewo nawigatora od nowa z zaktualizowanej bazy
     On Error GoTo 0
-    Notify "Update completed. Data merged." ' Wyświetlenie okna z komunikatem sukcesu
+    Select Case gChainStep
+        Case 1
+            gChainStep = 2
+            Notify "Update completed. Next: exact attribute scan in the background..."
+            Application.OnTime Now + TimeSerial(0, 0, 2), "'" & ThisWorkbook.Name & "'!StartAttrScan"
+        Case 3
+            gChainStep = 0
+            Notify "Update completed (with the newly found attributes). Data merged."
+        Case Else
+            Notify "Update completed. Data merged."
+    End Select
 End Sub
                                              ' Koniec głównej procedury
 
@@ -214,7 +227,7 @@ Public Sub PollDownload()
     End If
     Application.StatusBar = "Pobieranie z ProjectWise w tle: " & Format(Now - gStart, "nn:ss") & " - Excel jest wolny, mozesz pracowac."
     If Now - gStart > TimeSerial(0, 0, 15) And Not PsRunning() Then   ' okno PowerShell zamkniete lub skrypt padl bez ukonczenia
-        gBusy = False
+        gBusy = False: gChainStep = 0
         Application.StatusBar = False
         Notify "Download aborted (PowerShell window closed or login/script error). Sheet data was not changed."
         Exit Sub
@@ -222,10 +235,10 @@ Public Sub PollDownload()
     SchedulePoll
 End Sub
 
-Private Function PsRunning() As Boolean
+Private Function PsRunning(Optional ByVal scriptName As String = "PW_GetFiles.ps1") As Boolean
     On Error Resume Next
     Dim n As Long
-    n = GetObject("winmgmts:\\.\root\cimv2").ExecQuery("SELECT ProcessId FROM Win32_Process WHERE Name='powershell.exe' AND CommandLine LIKE '%PW_GetFiles.ps1%'").Count
+    n = GetObject("winmgmts:\\.\root\cimv2").ExecQuery("SELECT ProcessId FROM Win32_Process WHERE Name='powershell.exe' AND CommandLine LIKE '%" & scriptName & "%'").Count
     If Err.Number <> 0 Then PsRunning = True Else PsRunning = (n > 0)    ' bez WMI zakladamy, ze dziala
 End Function
 
@@ -454,9 +467,9 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine "$ErrorActionPreference = 'Stop'" ' Zapis kodu PS: Konfiguracja, zatrzymaj skrypt jeśli wystąpi krytyczny błąd PowerShell
     psFile.WriteLine ""                             ' Zapis kodu PS: Pusty wiersz dla czytelności kodu w PS1
     psFile.WriteLine "$globalWatch = [System.Diagnostics.Stopwatch]::StartNew()" ' Zapis kodu PS: Uruchomienie głównego wbudowanego stopera PS
-    psFile.WriteLine "try { Add-Type -Namespace Q -Name K -MemberDefinition '[DllImport(""kernel32.dll"")] public static extern IntPtr GetStdHandle(int h); [DllImport(""kernel32.dll"")] public static extern bool GetConsoleMode(IntPtr h, out uint m); [DllImport(""kernel32.dll"")] public static extern bool SetConsoleMode(IntPtr h, uint m);'; $h = [Q.K]::GetStdHandle(-10); $m = 0; if ([Q.K]::GetConsoleMode($h, [ref]$m)) { [void][Q.K]::SetConsoleMode($h, (($m -bor 0x80) -band (-bnot 0x40))) } } catch {}" ' QuickEdit off: klikniecie w okno konsoli nie wstrzymuje juz skryptu
-    psFile.WriteLine "Write-Host 'Loading PWPS_DAB...' -ForegroundColor Cyan" ' Zapis kodu PS: Wypisanie informacji w konsoli
-    psFile.WriteLine "Import-Module PWPS_DAB -Force" ' Zapis kodu PS: Wymuszone wczytanie biblioteki integracji z ProjectWise
+    WritePsPrelude psFile, "update"
+    psFile.WriteLine "Say-Head 'Loading ProjectWise module'" ' Zapis kodu PS: Wypisanie informacji w konsoli
+    psFile.WriteLine "Import-Module PWPS_DAB -Force -DisableNameChecking 3>$null 4>$null" ' Zapis kodu PS: Wymuszone wczytanie biblioteki integracji z ProjectWise
     psFile.WriteLine ""                             ' Zapis kodu PS: Pusty wiersz
     psFile.WriteLine "$inputData = @(Get-Content $InputFile | Where-Object { $_.Trim() -ne '' })" ' Zapis kodu PS: Wczytanie zawartości pliku TXT (wiersze konfiguracji)
     psFile.WriteLine "$totalFolders = $inputData.Count" ' Zapis kodu PS: Obliczenie łącznej liczby zdefiniowanych folderów
@@ -484,7 +497,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine " Write-Host ('Datasource: ' + $dsName) -ForegroundColor Cyan" ' Zapis kodu PS: Wyświetla przetwarzane źródło
     psFile.WriteLine " Write-Host ('Scanning folder AND subfolders: ' + $rawFolder) -ForegroundColor Yellow" ' Zapis kodu PS: Wyświetla nazwę skanowanego folderu
     psFile.WriteLine " try {"                       ' Zapis kodu PS: Rozpoczęcie bloku łapania błędów
-    psFile.WriteLine " if ($loggedDs -ne $dsName) { if ($loggedDs) { Undo-PWLogin | Out-Null }; New-PWLogin -DatasourceName $dsName -BentleyIMS -NonAdminLogin -Verbose | Out-Null; $loggedDs = $dsName }" ' Logowanie tylko gdy zmienia sie datasource (wczesniej: osobne logowanie dla kazdego folderu)
+    psFile.WriteLine " if ($loggedDs -ne $dsName) { if ($loggedDs) { Undo-PWLogin | Out-Null }; New-PWLogin -DatasourceName $dsName -BentleyIMS -NonAdminLogin | Out-Null; $loggedDs = $dsName }" ' Logowanie tylko gdy zmienia sie datasource (wczesniej: osobne logowanie dla kazdego folderu)
     psFile.WriteLine " } catch {"                   ' Zapis kodu PS: Złapanie błędu logowania
     psFile.WriteLine " Write-Host ('Login ERROR: ' + $_.Exception.Message) -ForegroundColor Red" ' Zapis kodu PS: Wyświetlenie błędu czerwonym kolorem
     psFile.WriteLine " continue"                    ' Zapis kodu PS: Przejście do następnego folderu
@@ -636,6 +649,7 @@ Private Sub GeneratePowerShellScript(psPath As String, psArrayString As String, 
     psFile.WriteLine "Write-Host ('[TIMER] TOTAL EXECUTION TIME: ' + $globalWatch.Elapsed.ToString('hh\:mm\:ss')) -ForegroundColor Magenta" ' Zapis kodu PS: Informacja w oknie CMD o długości trwania skanowania bazy
     psFile.WriteLine "Set-Content -Path ($OutputFile + '.done') -Value 'done'" ' Znacznik zakonczenia dla Excela (pobieranie w tle)
     psFile.WriteLine "Write-Host 'Done! Window will close automatically in 3 seconds...' -ForegroundColor Green" ' Zapis kodu PS: Informacja o zautomatyzowanym zamknięciu, okno po prostu powiadomiło że zaraz "gaśnie"
+    psFile.WriteLine "try { Stop-Transcript | Out-Null } catch {}"
     psFile.WriteLine "Start-Sleep -Seconds 3"      ' Zapis kodu PS: Opóźnienie zamknięcia procesu powłoki, by dało się przeczytać czas
     psFile.Close                                    ' VBA: Ostateczne zapisanie wygenerowanego kodu w pliku .ps1 i zwolnienie uchwytu
 End Sub                                             ' Zakończenie modułu kodującego plik
@@ -1083,9 +1097,9 @@ Public Sub StartAttrScan()
     psFile.WriteLine "param([string]$InputFile, [string]$OutputFile)"
     psFile.WriteLine "$ErrorActionPreference = 'Stop'"
     psFile.WriteLine "$sw = [System.Diagnostics.Stopwatch]::StartNew()"
-    psFile.WriteLine "try { Add-Type -Namespace Q -Name K -MemberDefinition '[DllImport(""kernel32.dll"")] public static extern IntPtr GetStdHandle(int h); [DllImport(""kernel32.dll"")] public static extern bool GetConsoleMode(IntPtr h, out uint m); [DllImport(""kernel32.dll"")] public static extern bool SetConsoleMode(IntPtr h, uint m);'; $h = [Q.K]::GetStdHandle(-10); $m = 0; if ([Q.K]::GetConsoleMode($h, [ref]$m)) { [void][Q.K]::SetConsoleMode($h, (($m -bor 0x80) -band (-bnot 0x40))) } } catch {}"
-    psFile.WriteLine "Write-Host 'ATTRIBUTE SCAN (exact, all files) - Excel stays free, you can keep working.' -ForegroundColor Cyan"
-    psFile.WriteLine "Import-Module PWPS_DAB -Force"
+    WritePsPrelude psFile, "attribute-scan"
+    psFile.WriteLine "Say-Head 'Exact attribute scan of all files'"
+    psFile.WriteLine "Import-Module PWPS_DAB -Force -DisableNameChecking 3>$null 4>$null"
     psFile.WriteLine "$in = @(Get-Content $InputFile | Where-Object { $_.Trim() -ne '' })"
     psFile.WriteLine "$found = [ordered]@{}; $fmap = [ordered]@{}; $loggedDs = $null; $total = 0"
     psFile.WriteLine "foreach ($line in $in) {"
@@ -1126,6 +1140,7 @@ Public Sub StartAttrScan()
     psFile.WriteLine "$ol | Out-File -FilePath $OutputFile -Encoding UTF8 -Force"
     psFile.WriteLine "Set-Content -Path ($OutputFile + '.done') -Value 'done'"
     psFile.WriteLine "Write-Host ('DONE: ' + $total + ' documents, ' + $found.Count + ' attributes with values, ' + $fmap.Count + ' folders in ' + $sw.Elapsed.ToString('hh\:mm\:ss') + '. Window closes in 3 s.') -ForegroundColor Green"
+    psFile.WriteLine "try { Stop-Transcript | Out-Null } catch {}"
     psFile.WriteLine "Start-Sleep -Seconds 3"
     psFile.Close
     Dim wsh As Object: Set wsh = CreateObject("WScript.Shell")
@@ -1145,13 +1160,63 @@ Public Sub PollAttrScan()
     Dim fso As Object: Set fso = CreateObject("Scripting.FileSystemObject")
     If fso.FileExists(gScanOut & ".done") Then
         gScanBusy = False
-        MergeFoundAttributes gScanOut, True
+        Dim nNew As Long
+        nNew = MergeFoundAttributes(gScanOut, True)
         On Error Resume Next
         fso.DeleteFile gScanOut & ".done"
         On Error GoTo 0
-        Notify "Attribute scan finished (" & Format(Now - gScanStart, "hh:mm:ss") & "). Review sheet " & SH_ATTRS & ", then click UPDATE DATA."
+        If nNew > 0 Then
+            gChainStep = 3
+            Notify "Attribute scan finished (" & Format(Now - gScanStart, "hh:mm:ss") & "): " & nNew & " new attribute(s). Starting the exact download in the background..."
+            Application.OnTime Now + TimeSerial(0, 0, 2), "'" & ThisWorkbook.Name & "'!DownloadFromProjectWise_PWPS"
+        Else
+            gChainStep = 0
+            Notify "Attribute scan finished (" & Format(Now - gScanStart, "hh:mm:ss") & "): no new attributes."
+        End If
+        Exit Sub
+    End If
+    If Now - gScanStart > TimeSerial(0, 0, 20) And Not PsRunning("PW_AttrScan.ps1") Then
+        gScanBusy = False: gChainStep = 0
+        Application.StatusBar = False
+        Notify "Attribute scan aborted (PowerShell window closed or error). Check the log with OPEN PS LOG."
         Exit Sub
     End If
     Application.StatusBar = "Attribute scan running in the background: " & Format(Now - gScanStart, "hh:mm:ss")
     SchedScanPoll
+End Sub
+
+Private Sub WritePsPrelude(psFile As Object, ByVal job As String)  ' wspolny naglowek skryptow PS: log do pliku (transcript), tryb okna, helpery
+    psFile.WriteLine "$jobName = '" & job & "'"
+    psFile.WriteLine "$logDir = Join-Path (Split-Path -Parent $OutputFile) 'PW_Logs'"
+    psFile.WriteLine "if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }"
+    psFile.WriteLine "$logFile = Join-Path $logDir ((Get-Date).ToString('yyyy-MM-dd_HHmmss') + '_' + $jobName + '.log')"
+    psFile.WriteLine "try { Start-Transcript -Path $logFile -Force | Out-Null } catch {}"
+    psFile.WriteLine "Set-Content -Path (Join-Path $logDir 'last.txt') -Value $logFile -Encoding UTF8"
+    psFile.WriteLine "try { Add-Type -Namespace Q -Name K -MemberDefinition '[DllImport(""kernel32.dll"")] public static extern IntPtr GetStdHandle(int h); [DllImport(""kernel32.dll"")] public static extern bool GetConsoleMode(IntPtr h, out uint m); [DllImport(""kernel32.dll"")] public static extern bool SetConsoleMode(IntPtr h, uint m);'; $h = [Q.K]::GetStdHandle(-10); $m = 0; if ([Q.K]::GetConsoleMode($h, [ref]$m)) { [void][Q.K]::SetConsoleMode($h, (($m -bor 0x80) -band (-bnot 0x40))) } } catch {}"
+    psFile.WriteLine "try { $Host.UI.RawUI.WindowTitle = 'ProjectWise Integration - ' + $jobName; $Host.UI.RawUI.BackgroundColor = 'Black'; $Host.UI.RawUI.ForegroundColor = 'Gray'; Clear-Host } catch {}"
+    psFile.WriteLine "function Say([string]$m, [string]$c = 'Gray') { Write-Host ((Get-Date).ToString('HH:mm:ss') + '  ') -NoNewline -ForegroundColor DarkGray; Write-Host $m -ForegroundColor $c }"
+    psFile.WriteLine "function Say-Head([string]$t) { Write-Host ''; Write-Host ('  ' + $t) -ForegroundColor Cyan; Write-Host ('  ' + ('-' * 66)) -ForegroundColor DarkCyan }"
+    psFile.WriteLine "Write-Host ''; Write-Host '  ================================================================' -ForegroundColor DarkCyan"
+    psFile.WriteLine "Write-Host '   PROJECTWISE INTEGRATION' -ForegroundColor White; Write-Host ('   Job: ' + $jobName.ToUpper() + '   |   Started: ' + (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')) -ForegroundColor Gray"
+    psFile.WriteLine "Write-Host ('   Log: ' + $logFile) -ForegroundColor DarkGray; Write-Host '   You can keep working in Excel - this window runs in the background.' -ForegroundColor DarkGray"
+    psFile.WriteLine "Write-Host '  ================================================================' -ForegroundColor DarkCyan"
+End Sub
+
+' Otwiera najnowszy log PowerShella (folder PW_Logs obok skoroszytu) w Notatniku
+Public Sub OpenLastPsLog()
+    Dim fso As Object, f As Object, best As Object, dir As String
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    dir = ThisWorkbook.Path & "\PW_Logs"
+    If Not fso.FolderExists(dir) Then Notify "No PowerShell logs yet (folder PW_Logs is created by the first update).": Exit Sub
+    For Each f In fso.GetFolder(dir).Files
+        If LCase(fso.GetExtensionName(f.Name)) = "log" Then
+            If best Is Nothing Then
+                Set best = f
+            ElseIf f.DateLastModified > best.DateLastModified Then
+                Set best = f
+            End If
+        End If
+    Next f
+    If best Is Nothing Then Notify "No PowerShell logs yet.": Exit Sub
+    CreateObject("WScript.Shell").Run "notepad.exe """ & best.Path & """", 1, False
 End Sub
