@@ -163,6 +163,7 @@ Public Sub RenderDashboard(Optional ByVal resetPage As Boolean = False)
         Next j
     End If
     wsV.Columns(1).ColumnWidth = 44
+    If Abs(wsV.Columns(3).Left - mFzUsed) > 1 Then DrawHeader wsV      ' szerokosc kolumn A:B sie zmienila - przerysuj panel, zeby nie przecinal granicy zamrozenia
     
     stp = "format"
     Dim lastC As Long: lastC = nCols + 1: If lastC < 12 Then lastC = 12
