@@ -11,6 +11,7 @@ Private gTxtPath As String, gStructPath As String, gPsPath As String, gCsvPath A
 Private gNumScopes As Long
 Private gScopes As Variant
 Private gNextPoll As Date
+Private gScanBusy As Boolean, gScanStart As Date, gScanNext As Date, gScanOut As String
 Private wsLog As Worksheet                          ' Zmienna przechowująca obiekt arkusza z logami
 Private nextLogRow As Long                          ' Zmienna przechowująca numer kolejnego, pustego wiersza do zapisu w logach
 Private logStartRow As Long                         ' Zmienna przechowująca numer wiersza początkowego dla danej sesji uruchomienia
@@ -21,7 +22,7 @@ Private logStartRow As Long                         ' Zmienna przechowująca num
 ' skryptu PowerShell, aż po analizę różnicową i zapis logów.
 ' =======================================================================
 Public Function DownloadBusy() As Boolean
-    DownloadBusy = gBusy
+    DownloadBusy = gBusy Or gScanBusy
 End Function
 
 Sub DownloadFromProjectWise_PWPS()                  ' Publiczny punkt wejścia: chroni stan Excela i raportuje błędy
@@ -1056,4 +1057,101 @@ Private Sub WriteAttrMap(ByVal path As String)
         Next r
     End If
     f.Close
+End Sub
+
+' =======================================================================
+' DOKLADNA ANALIZA ATRYBUTOW (w tle): czyta WSZYSTKIE pliki ze wszystkich folderow z arkusza Folders i zbiera atrybuty,
+' ktore maja wartosc. Bez limitu czasu; Excel jest wolny, okno PowerShella pracuje w tle. Wynik: arkusz Attributes + ukryty AttrMap.
+' =======================================================================
+Public Sub StartAttrScan()
+    If gBusy Or gScanBusy Then
+        Notify "A ProjectWise job is already running in the background. Wait for it to finish."
+        Exit Sub
+    End If
+    If ThisWorkbook.Path = "" Then Notify "Please save the Excel workbook to your drive first!": Exit Sub
+    Dim ws2 As Worksheet, numScopes As Long, arr As Variant, base As String, fso As Object, psFile As Object
+    Set ws2 = ThisWorkbook.Sheets(SH_FOLDERS)
+    base = ThisWorkbook.Path
+    If Not PrepareScopesAndTxtFile(ws2, base & "\PW_Folders.txt", numScopes, arr) Then Exit Sub
+    If numScopes = 0 Then Notify "No active folder link in sheet " & SH_FOLDERS & ".": Exit Sub
+    Set fso = CreateObject("Scripting.FileSystemObject")
+    gScanOut = base & "\PW_AttrScan.txt"
+    On Error Resume Next
+    fso.DeleteFile gScanOut: fso.DeleteFile gScanOut & ".done"
+    On Error GoTo 0
+    Set psFile = fso.CreateTextFile(base & "\PW_AttrScan.ps1", True, True)
+    psFile.WriteLine "param([string]$InputFile, [string]$OutputFile)"
+    psFile.WriteLine "$ErrorActionPreference = 'Stop'"
+    psFile.WriteLine "$sw = [System.Diagnostics.Stopwatch]::StartNew()"
+    psFile.WriteLine "try { Add-Type -Namespace Q -Name K -MemberDefinition '[DllImport(""kernel32.dll"")] public static extern IntPtr GetStdHandle(int h); [DllImport(""kernel32.dll"")] public static extern bool GetConsoleMode(IntPtr h, out uint m); [DllImport(""kernel32.dll"")] public static extern bool SetConsoleMode(IntPtr h, uint m);'; $h = [Q.K]::GetStdHandle(-10); $m = 0; if ([Q.K]::GetConsoleMode($h, [ref]$m)) { [void][Q.K]::SetConsoleMode($h, (($m -bor 0x80) -band (-bnot 0x40))) } } catch {}"
+    psFile.WriteLine "Write-Host 'ATTRIBUTE SCAN (exact, all files) - Excel stays free, you can keep working.' -ForegroundColor Cyan"
+    psFile.WriteLine "Import-Module PWPS_DAB -Force"
+    psFile.WriteLine "$in = @(Get-Content $InputFile | Where-Object { $_.Trim() -ne '' })"
+    psFile.WriteLine "$found = [ordered]@{}; $fmap = [ordered]@{}; $loggedDs = $null; $total = 0"
+    psFile.WriteLine "foreach ($line in $in) {"
+    psFile.WriteLine "    $parts = $line.Split('|'); if ($parts.Count -lt 2) { continue }"
+    psFile.WriteLine "    $dsName = $parts[0].Trim(); $rawFolder = $parts[1].Trim()"
+    psFile.WriteLine "    try {"
+    psFile.WriteLine "        if ($loggedDs -ne $dsName) { if ($loggedDs) { Undo-PWLogin | Out-Null }; New-PWLogin -DatasourceName $dsName -BentleyIMS -NonAdminLogin | Out-Null; $loggedDs = $dsName }"
+    psFile.WriteLine "        $fp = $rawFolder; $ix = $fp.IndexOf('\Documents\', [System.StringComparison]::OrdinalIgnoreCase); if ($ix -ge 0) { $fp = $fp.Substring($ix + 11) } elseif ($fp.StartsWith('Documents\', [System.StringComparison]::OrdinalIgnoreCase)) { $fp = $fp.Substring(10) }"
+    psFile.WriteLine "        $fp = $fp.Trim('\')"
+    psFile.WriteLine "        $fl = @(Get-PWFolders -FolderPath $fp -ErrorAction SilentlyContinue); if ($fl.Count -eq 0) { $fl = @(Get-PWFolders -FolderPath ('\' + $fp) -ErrorAction SilentlyContinue) }"
+    psFile.WriteLine "        if ($fl.Count -eq 0) { Write-Host ('Folder not found: ' + $rawFolder) -ForegroundColor Red; continue }"
+    psFile.WriteLine "        Write-Host ('Reading all documents with attributes: ' + $rawFolder + ' (can take a long time)') -ForegroundColor Yellow"
+    psFile.WriteLine "        $docs = @(Get-PWDocumentsBySearch -FolderID $fl[0].ProjectID -GetAttributes -WarningAction SilentlyContinue -ErrorAction SilentlyContinue)"
+    psFile.WriteLine "        Write-Host ('Documents: ' + $docs.Count + ' (' + $sw.Elapsed.ToString('hh\:mm\:ss') + '). Analysing attributes...') -ForegroundColor Green"
+    psFile.WriteLine "        $i = 0"
+    psFile.WriteLine "        foreach ($d in $docs) {"
+    psFile.WriteLine "            $i++; $total++"
+    psFile.WriteLine "            if ($i % 500 -eq 0) { Write-Progress -Activity 'Attribute scan' -Status ('Document ' + $i + ' / ' + $docs.Count + ' | attributes found: ' + $found.Count) -PercentComplete (($i / $docs.Count) * 100) }"
+    psFile.WriteLine "            $fk = $rawFolder; if ($d.FullPath) { $ls = ([string]$d.FullPath).LastIndexOf('\'); if ($ls -ge 0) { $fk = ([string]$d.FullPath).Substring(0, $ls) } }"
+    psFile.WriteLine "            if (-not $fmap.Contains($fk)) { $fmap[$fk] = @{} }"
+    psFile.WriteLine "            $ca = $d.CustomAttributes; if (-not $ca) { continue }"
+    psFile.WriteLine "            if ($ca -is [System.Collections.IDictionary]) { $names = @($ca.Keys | ForEach-Object { [string]$_ }) } else { $names = @($ca.PSObject.Properties | ForEach-Object { $_.Name }) }"
+    psFile.WriteLine "            foreach ($n in $names) {"
+    psFile.WriteLine "                if (-not $n) { continue }"
+    psFile.WriteLine "                if ($ca -is [System.Collections.IDictionary]) { $v = $ca[$n] } else { $v = $ca.PSObject.Properties[$n].Value }"
+    psFile.WriteLine "                if ($v -is [array]) { $v = ($v -join ', ') }"
+    psFile.WriteLine "                $sv = ([string]$v).Replace('|', '-').Replace([string][char]10, ' ').Replace([string][char]13, '')"
+    psFile.WriteLine "                if ($sv.Trim() -ne '') { $fmap[$fk][$n] = 1; if (-not $found.Contains($n)) { $found[$n] = $sv } }"
+    psFile.WriteLine "            }"
+    psFile.WriteLine "        }"
+    psFile.WriteLine "        Write-Progress -Activity 'Attribute scan' -Completed"
+    psFile.WriteLine "    } catch { Write-Host ('ERROR: ' + $_.Exception.Message) -ForegroundColor Red }"
+    psFile.WriteLine "}"
+    psFile.WriteLine "if ($loggedDs) { try { Undo-PWLogin | Out-Null } catch {} }"
+    psFile.WriteLine "$ol = New-Object System.Collections.ArrayList"
+    psFile.WriteLine "foreach ($k in $found.Keys) { [void]$ol.Add('A|' + $k + '|' + $found[$k]) }"
+    psFile.WriteLine "foreach ($f in $fmap.Keys) { [void]$ol.Add('F|' + $f + '|' + (@($fmap[$f].Keys) -join [string][char]9)) }"
+    psFile.WriteLine "$ol | Out-File -FilePath $OutputFile -Encoding UTF8 -Force"
+    psFile.WriteLine "Set-Content -Path ($OutputFile + '.done') -Value 'done'"
+    psFile.WriteLine "Write-Host ('DONE: ' + $total + ' documents, ' + $found.Count + ' attributes with values, ' + $fmap.Count + ' folders in ' + $sw.Elapsed.ToString('hh\:mm\:ss') + '. Window closes in 3 s.') -ForegroundColor Green"
+    psFile.WriteLine "Start-Sleep -Seconds 3"
+    psFile.Close
+    Dim wsh As Object: Set wsh = CreateObject("WScript.Shell")
+    wsh.Run "powershell.exe -ExecutionPolicy Bypass -File """ & base & "\PW_AttrScan.ps1"" -InputFile """ & base & "\PW_Folders.txt"" -OutputFile """ & gScanOut & """", 7, False
+    gScanBusy = True: gScanStart = Now
+    SchedScanPoll
+    Notify "Attribute scan started in the background (PowerShell window on the taskbar). You can keep working; the sheet updates when it finishes."
+End Sub
+
+Private Sub SchedScanPoll()
+    gScanNext = Now + TimeSerial(0, 0, 3)
+    Application.OnTime gScanNext, "'" & ThisWorkbook.Name & "'!PollAttrScan"
+End Sub
+
+Public Sub PollAttrScan()
+    If Not gScanBusy Then Exit Sub
+    Dim fso As Object: Set fso = CreateObject("Scripting.FileSystemObject")
+    If fso.FileExists(gScanOut & ".done") Then
+        gScanBusy = False
+        MergeFoundAttributes gScanOut, True
+        On Error Resume Next
+        fso.DeleteFile gScanOut & ".done"
+        On Error GoTo 0
+        Notify "Attribute scan finished (" & Format(Now - gScanStart, "hh:mm:ss") & "). Review sheet " & SH_ATTRS & ", then click UPDATE DATA."
+        Exit Sub
+    End If
+    Application.StatusBar = "Attribute scan running in the background: " & Format(Now - gScanStart, "hh:mm:ss")
+    SchedScanPoll
 End Sub

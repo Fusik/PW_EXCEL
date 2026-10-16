@@ -260,7 +260,7 @@ End Function
 
 ' Wynik sprawdzania podfolderow (plik): linie A|atrybut|przyklad (tylko niepuste) i F|folder|atrybuty (TAB).
 ' Atrybuty trafiaja do arkusza Attributes (YES), mapa folder -> atrybuty do ukrytego arkusza AttrMap (kolejne aktualizacje nie skanuja znanych folderow).
-Public Sub MergeFoundAttributes(ByVal path As String)
+Public Sub MergeFoundAttributes(ByVal path As String, Optional ByVal exact As Boolean = False)
     Dim fso As Object, st As Object, tx As String, ln() As String, i As Long, p As Long, q As Long, nm As String
     Set fso = CreateObject("Scripting.FileSystemObject")
     If Not fso.FileExists(path) Then Exit Sub
@@ -323,7 +323,7 @@ Public Sub MergeFoundAttributes(ByVal path As String)
             End If
         End If
     Next i
-    If firstScan Then                                  ' pierwszy raz: wylacz wczesniej dopisane atrybuty, ktore nigdzie nie maja wartosci
+    If firstScan Or exact Then                                  ' pierwszy raz: wylacz wczesniej dopisane atrybuty, ktore nigdzie nie maja wartosci
         Dim nOff As Long
         For i = ATTRS_FIRST_ROW To lastA
             nm = Trim(CStr(wsA.Cells(i, 1).Value))
