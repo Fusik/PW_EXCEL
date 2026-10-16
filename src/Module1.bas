@@ -661,9 +661,11 @@ Private Function ValuesDiffer(ByVal a As String, ByVal b As String) As Boolean
     On Error GoTo 0
 End Function
 
-Private Sub AppendNote(d As Object, ByVal ro As Long, ByVal col As Long, ByVal line As String)   ' pelna historia zmian wartosci -> notatka komorki
-    Dim k As String: k = ro & "|" & col
-    If d.exists(k) Then d(k) = d(k) & vbLf & line Else d(k) = line
+' Prosty log pliku w kolumnie Change Info: nowy wpis na gorze, starsze pod spodem
+Private Sub AddInfo(res() As Variant, ByVal ro As Long, ByVal iCh As Long, ByVal line As String)
+    Dim old As String: old = CStr(res(ro, iCh))
+    If old <> "" Then line = line & vbLf & old
+    res(ro, iCh) = Left(line, 8000)
 End Sub
 
 Private Sub QueueLog(lst As Object, ByVal action As String, ByVal fName As String, ByVal attr As String, ByVal oldV As String, ByVal newV As String, ByVal user As String)
@@ -715,31 +717,50 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
         m = UBound(oldArr, 1)
     End If
     
-    ' --- uklad kolumn: stare naglowki bez zmian, nowe dopisywane na koncu ---
-    Dim hdr() As String, nc As Long, hIdx As Object
+    ' --- uklad kolumn: 3 pierwsze kolumny danych, potem Change Info (zawsze 4.) i Status (5.), reszta; stare kolumny mapowane po nazwie ---
+    Dim hdr() As String, nc As Long, hIdx As Object, nm0 As String
     Set hIdx = CreateObject("Scripting.Dictionary"): hIdx.CompareMode = 1
-    ReDim hdr(1 To oldC + UBound(csvH) + 5)
+    Dim cand() As String, nCand As Long
+    ReDim cand(1 To oldC + UBound(csvH) + 5)
+    Dim oldH() As String, c As Long
     If oldC > 0 Then
+        ReDim oldH(1 To oldC)
         hv = ReadBlock(ws1, DATA_HEADER_ROW, 1, DATA_HEADER_ROW, oldC)
         For i = 1 To oldC
-            hdr(i) = Trim(CStr(hv(1, i)))
-            If hdr(i) <> "" Then hIdx(hdr(i)) = i
+            oldH(i) = Trim(CStr(hv(1, i)))
+            If oldH(i) <> "" And oldH(i) <> COL_STATUS And oldH(i) <> COL_CHANGES Then nCand = nCand + 1: cand(nCand) = oldH(i)
         Next i
-        nc = oldC
     End If
-    Dim csvMap() As Long
-    ReDim csvMap(0 To UBound(csvH))
-    Dim c As Long
     For c = 0 To UBound(csvH)
-        If csvH(c) = "Folder Link" Then
-            csvMap(c) = 0
-        Else
-            If Not hIdx.exists(csvH(c)) Then nc = nc + 1: hdr(nc) = csvH(c): hIdx(csvH(c)) = nc
-            csvMap(c) = hIdx(csvH(c))
+        If csvH(c) <> "Folder Link" And csvH(c) <> COL_STATUS And csvH(c) <> COL_CHANGES Then
+            nm0 = csvH(c)
+            Dim dupe As Boolean: dupe = False
+            For i = 1 To nCand
+                If StrComp(cand(i), nm0, vbTextCompare) = 0 Then dupe = True: Exit For
+            Next i
+            If Not dupe Then nCand = nCand + 1: cand(nCand) = nm0
         End If
     Next c
-    If Not hIdx.exists(COL_STATUS) Then nc = nc + 1: hdr(nc) = COL_STATUS: hIdx(COL_STATUS) = nc
-    If Not hIdx.exists(COL_CHANGES) Then nc = nc + 1: hdr(nc) = COL_CHANGES: hIdx(COL_CHANGES) = nc
+    ReDim hdr(1 To nCand + 2)
+    For i = 1 To nCand
+        If i <= 3 Then nc = nc + 1: hdr(nc) = cand(i): hIdx(cand(i)) = nc
+    Next i
+    nc = nc + 1: hdr(nc) = COL_CHANGES: hIdx(COL_CHANGES) = nc
+    nc = nc + 1: hdr(nc) = COL_STATUS: hIdx(COL_STATUS) = nc
+    For i = 4 To nCand
+        nc = nc + 1: hdr(nc) = cand(i): hIdx(cand(i)) = nc
+    Next i
+    Dim csvMap() As Long, oldMap() As Long
+    ReDim csvMap(0 To UBound(csvH))
+    For c = 0 To UBound(csvH)
+        If hIdx.exists(csvH(c)) Then csvMap(c) = hIdx(csvH(c)) Else csvMap(c) = 0
+    Next c
+    If oldC > 0 Then
+        ReDim oldMap(1 To oldC)
+        For c = 1 To oldC
+            If hIdx.exists(oldH(c)) Then oldMap(c) = hIdx(oldH(c)) Else oldMap(c) = 0
+        Next c
+    End If
     Dim iName As Long, iPath As Long, iLink As Long, iUpd As Long, iSt As Long, iCh As Long
     iName = hIdx("File Name"): iPath = hIdx("PW Source Path"): iLink = hIdx("PW Link"): iUpd = hIdx("Updater")
     iSt = hIdx(COL_STATUS): iCh = hIdx(COL_CHANGES)
@@ -749,30 +770,26 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
     cap = m + nCsv + 1
     ReDim res(1 To cap, 1 To nc)
     Dim dIdx As Object, key As String, pth As String, nm As String
-    Dim notes As Object, oldToNew() As Long, cm As Comment
-    Set notes = CreateObject("Scripting.Dictionary")
-    If m > 0 Then ReDim oldToNew(1 To m)
+    Dim oN As Long, oP As Long
+    For c = 1 To oldC
+        If StrComp(oldH(c), "File Name", vbTextCompare) = 0 Then oN = c
+        If StrComp(oldH(c), "PW Source Path", vbTextCompare) = 0 Then oP = c
+    Next c
     Set dIdx = CreateObject("Scripting.Dictionary"): dIdx.CompareMode = 1
     For r = 1 To m
-        nm = Trim(CStr(oldArr(r, iName))): pth = Trim(CStr(oldArr(r, iPath)))
+        nm = Trim(CStr(oldArr(r, oN))): pth = Trim(CStr(oldArr(r, oP)))
         If nm <> "" And pth <> "" Then               ' pusty path = stary wiersz folderu - pomijamy
-            cnt = cnt + 1: oldToNew(r) = cnt
-            For c = 1 To oldC: res(cnt, c) = oldArr(r, c): Next c
-            If CStr(res(cnt, iSt)) <> "DELETED" Then res(cnt, iSt) = "": res(cnt, iCh) = ""
+            cnt = cnt + 1
+            For c = 1 To oldC
+                If oldMap(c) > 0 Then res(cnt, oldMap(c)) = oldArr(r, c)
+            Next c
+            If CStr(res(cnt, iSt)) <> "DELETED" Then res(cnt, iSt) = ""
             key = Trim(CStr(res(cnt, iLink)))
             If key = "" Then key = pth & "|" & nm
             dIdx(key) = cnt
         End If
     Next r
     Dim nOld As Long: nOld = cnt
-    On Error Resume Next                             ' dotychczasowe notatki (historia zmian) przechodza do nowych wierszy
-    For Each cm In ws1.Comments
-        r = cm.Parent.Row - DATA_HEADER_ROW
-        If r >= 1 And r <= m Then
-            If oldToNew(r) > 0 Then notes(oldToNew(r) & "|" & cm.Parent.Column) = cm.Text
-        End If
-    Next cm
-    On Error GoTo 0
     Dim seen() As Boolean
     ReDim seen(1 To cap)
     
@@ -796,7 +813,7 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
             If ro > 0 Then
                 seen(ro) = True
                 chgTxt = ""
-                If CStr(res(ro, iSt)) = "DELETED" Then res(ro, iSt) = "": res(ro, iCh) = "Restored in PW " & stamp: nRestored = nRestored + 1
+                If CStr(res(ro, iSt)) = "DELETED" Then res(ro, iSt) = "": AddInfo res, ro, iCh, stamp & "  Restored in PW": nRestored = nRestored + 1
                 For c = 0 To UBound(csvH)
                     t = csvMap(c)
                     If t > 0 And c <= UBound(f) Then
@@ -807,7 +824,6 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
                             res(ro, t) = nv
                             If ov <> "" Then
                                 nChgCells = nChgCells + 1
-                                AppendNote notes, ro, t, stamp & "  " & currentUpdater & ":  " & ov & "  ->  " & nv
                                 chgTxt = chgTxt & csvH(c) & ": " & ov & " -> " & nv & " | "
                                 If nChgCells <= 3000 Then QueueLog logs, "CHANGED", CStr(res(ro, iName)), csvH(c), ov, nv, currentUpdater
                             End If
@@ -817,7 +833,7 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
                 If chgTxt <> "" Then
                     nChg = nChg + 1
                     res(ro, iSt) = "CHANGED"
-                    res(ro, iCh) = Left(stamp & "  " & chgTxt, 1000)
+                    AddInfo res, ro, iCh, stamp & "  " & chgTxt
                 End If
             Else
                 cnt = cnt + 1: nAdd = nAdd + 1
@@ -825,7 +841,7 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
                     t = csvMap(c)
                     If t > 0 And c <= UBound(f) Then res(cnt, t) = Trim(f(c))
                 Next c
-                res(cnt, iSt) = "NEW": res(cnt, iCh) = "Added " & stamp
+                res(cnt, iSt) = "NEW": AddInfo res, cnt, iCh, stamp & "  Added"
                 dIdx(key) = cnt: seen(cnt) = True
                 If nOld > 0 And nAdd <= 1000 Then QueueLog logs, "ADDED", CStr(res(cnt, iName)), "-", "-", "-", currentUpdater
             End If
@@ -851,7 +867,7 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
                 scopeCache(pth) = underScope
             End If
             If underScope And CStr(res(r, iSt)) <> "DELETED" Then
-                res(r, iSt) = "DELETED": res(r, iCh) = "Deleted from PW " & stamp
+                res(r, iSt) = "DELETED": AddInfo res, r, iCh, stamp & "  Deleted from PW"
                 nDel = nDel + 1
                 If nDel <= 2000 Then QueueLog logs, "DELETED", CStr(res(r, iName)), "-", "Existed", "Deleted from PW", "-"
             End If
@@ -901,15 +917,6 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
     fcR.FormatConditions.Add(xlCellValue, xlEqual, "=""NEW""").Interior.Color = CLR_NEW
     fcR.FormatConditions.Add(xlCellValue, xlEqual, "=""CHANGED""").Interior.Color = CLR_CHANGED
     fcR.FormatConditions.Add(xlCellValue, xlEqual, "=""DELETED""").Interior.Color = CLR_DELETED
-    On Error GoTo 0
-    Dim nk As Variant, kp() As String, nn As Long
-    On Error Resume Next
-    ws1.Cells.ClearComments
-    For Each nk In notes.Keys                        ' notatki z pelna historia zmian wartosci
-        kp = Split(CStr(nk), "|")
-        ws1.Cells(DATA_HEADER_ROW + CLng(kp(0)), CLng(kp(1))).AddComment CStr(notes(nk))
-        nn = nn + 1: If nn >= 5000 Then Exit For
-    Next nk
     On Error GoTo 0
     SetDataCache res, hdr, cnt, nc
     
