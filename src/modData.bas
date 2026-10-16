@@ -169,6 +169,7 @@ Public Function RunQuery(ByVal srch As String, ByVal folder As String) As Long
     gHits = 0
     If gN = 0 Then ReDim gIdx(1 To 1): RunQuery = 0: Exit Function
     ReDim gIdx(1 To gN)
+    If LCase(Trim(srch)) = "batch:" Then RunQuery = BatchQuery(): Exit Function     ' szukanie zbiorcze - lista nazw z arkusza Batch
     Dim i As Long, j As Long
     Dim iPath As Long: iPath = ColOf("PW Source Path")
     

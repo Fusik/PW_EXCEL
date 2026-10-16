@@ -297,6 +297,7 @@ Public Sub DrawHeader(wsV As Worksheet)
     Next k
     Set shp = UiShape(wsV, "ui_scan", msoShapeRoundedRectangle, xr, y, 190, 32, t.inputBg, t.accent, "SCAN ATTRIBUTES (background)", t.inputFg, 9, wn & "StartAttrScan", False)
     Set shp = UiShape(wsV, "ui_pslog", msoShapeRoundedRectangle, xr + 198, y, 130, 32, t.inputBg, t.accent, "OPEN PS LOG", t.inputFg, 9, wn & "OpenLastPsLog", False)
+    Set shp = UiShape(wsV, "ui_batch", msoShapeRoundedRectangle, xr + 336, y, 130, 32, t.inputBg, t.accent, "BATCH SEARCH", t.inputFg, 9, wn & "OpenBatchSheet", False)
     
     ' legenda (A:B) + stronicowanie (za granica)
     y = wsV.Rows(5).Top + 4: x = 10
