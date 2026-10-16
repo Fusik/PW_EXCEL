@@ -661,6 +661,11 @@ Private Function ValuesDiffer(ByVal a As String, ByVal b As String) As Boolean
     On Error GoTo 0
 End Function
 
+Private Sub AppendNote(d As Object, ByVal ro As Long, ByVal col As Long, ByVal line As String)   ' pelna historia zmian wartosci -> notatka komorki
+    Dim k As String: k = ro & "|" & col
+    If d.exists(k) Then d(k) = d(k) & vbLf & line Else d(k) = line
+End Sub
+
 Private Sub QueueLog(lst As Object, ByVal action As String, ByVal fName As String, ByVal attr As String, ByVal oldV As String, ByVal newV As String, ByVal user As String)
     lst.Add Array(Now, action, fName, attr, oldV, newV, user)
 End Sub
@@ -744,11 +749,14 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
     cap = m + nCsv + 1
     ReDim res(1 To cap, 1 To nc)
     Dim dIdx As Object, key As String, pth As String, nm As String
+    Dim notes As Object, oldToNew() As Long, cm As Comment
+    Set notes = CreateObject("Scripting.Dictionary")
+    If m > 0 Then ReDim oldToNew(1 To m)
     Set dIdx = CreateObject("Scripting.Dictionary"): dIdx.CompareMode = 1
     For r = 1 To m
         nm = Trim(CStr(oldArr(r, iName))): pth = Trim(CStr(oldArr(r, iPath)))
         If nm <> "" And pth <> "" Then               ' pusty path = stary wiersz folderu - pomijamy
-            cnt = cnt + 1
+            cnt = cnt + 1: oldToNew(r) = cnt
             For c = 1 To oldC: res(cnt, c) = oldArr(r, c): Next c
             If CStr(res(cnt, iSt)) <> "DELETED" Then res(cnt, iSt) = "": res(cnt, iCh) = ""
             key = Trim(CStr(res(cnt, iLink)))
@@ -757,6 +765,14 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
         End If
     Next r
     Dim nOld As Long: nOld = cnt
+    On Error Resume Next                             ' dotychczasowe notatki (historia zmian) przechodza do nowych wierszy
+    For Each cm In ws1.Comments
+        r = cm.Parent.Row - DATA_HEADER_ROW
+        If r >= 1 And r <= m Then
+            If oldToNew(r) > 0 Then notes(oldToNew(r) & "|" & cm.Parent.Column) = cm.Text
+        End If
+    Next cm
+    On Error GoTo 0
     Dim seen() As Boolean
     ReDim seen(1 To cap)
     
@@ -791,6 +807,7 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
                             res(ro, t) = nv
                             If ov <> "" Then
                                 nChgCells = nChgCells + 1
+                                AppendNote notes, ro, t, stamp & "  " & currentUpdater & ":  " & ov & "  ->  " & nv
                                 chgTxt = chgTxt & csvH(c) & ": " & ov & " -> " & nv & " | "
                                 If nChgCells <= 3000 Then QueueLog logs, "CHANGED", CStr(res(ro, iName)), csvH(c), ov, nv, currentUpdater
                             End If
@@ -884,6 +901,15 @@ Private Sub ProcessDeltaAnalysis(ws1 As Worksheet, csvPath As String, txtLogPath
     fcR.FormatConditions.Add(xlCellValue, xlEqual, "=""NEW""").Interior.Color = CLR_NEW
     fcR.FormatConditions.Add(xlCellValue, xlEqual, "=""CHANGED""").Interior.Color = CLR_CHANGED
     fcR.FormatConditions.Add(xlCellValue, xlEqual, "=""DELETED""").Interior.Color = CLR_DELETED
+    On Error GoTo 0
+    Dim nk As Variant, kp() As String, nn As Long
+    On Error Resume Next
+    ws1.Cells.ClearComments
+    For Each nk In notes.Keys                        ' notatki z pelna historia zmian wartosci
+        kp = Split(CStr(nk), "|")
+        ws1.Cells(DATA_HEADER_ROW + CLng(kp(0)), CLng(kp(1))).AddComment CStr(notes(nk))
+        nn = nn + 1: If nn >= 5000 Then Exit For
+    Next nk
     On Error GoTo 0
     SetDataCache res, hdr, cnt, nc
     
