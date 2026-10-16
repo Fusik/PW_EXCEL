@@ -115,7 +115,7 @@ Public Sub StartPobieranie(ByVal linksText As String, ByVal target As String)
     f.WriteLine "    Start-Process $link"
     f.WriteLine "    $h = Wait-Win 'Security Notice' 3; if ($h -ne [IntPtr]::Zero) { Focus $h; Key 'y' }"
     f.WriteLine "    Start-Sleep -Seconds 6"
-    f.WriteLine "    $h = Wait-Win 'ProjectWise' 30; Focus $h"
+    f.WriteLine "    $h = Wait-Win 'ProjectWise Explorer' 30; if ($h -eq [IntPtr]::Zero) { $h = Wait-Win 'ProjectWise' 5 }; if ($h -eq [IntPtr]::Zero) { throw 'ProjectWise window not found' }; Write-Host '  ProjectWise window found - Alt+D, X' -ForegroundColor DarkGray; Focus $h"
     f.WriteLine "    Start-Sleep -Seconds 2; Key '%(dx)'"
     f.WriteLine "    $h = Wait-Win 'Export Wizard' 15"
     f.WriteLine "    if ($h -eq [IntPtr]::Zero) { Write-Host '  Alt+(DX): the wizard did not open yet - Enter' -ForegroundColor DarkGray; Key '{ENTER}'; $h = Wait-Win 'Export Wizard' 10 }"
